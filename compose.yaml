@@ -1,0 +1,37 @@
+services:
+  bridge:
+    image: ${BRIDGE_IMAGE:?Set versioned bridge image}
+    restart: unless-stopped
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:?Set HTTPS application URL}
+      DATABASE_PATH: /data/bridge.sqlite3
+      ENCRYPTION_KEY_FILE: /run/secrets/bridge.key
+      DRATA_BASE_URL: https://public-api.drata.com/public/v2
+      DRATA_LINK_HOSTS: ${DRATA_LINK_HOSTS:-}
+      TRUST_PROXY_HOPS: "1"
+      MAX_CONTENT_LENGTH: "131072"
+    volumes:
+      - ./data:/data
+      - ./secrets/bridge.key:/run/secrets/bridge.key:ro
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    stop_grace_period: 60s
+    mem_limit: 768m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

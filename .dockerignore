@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.env
+data
+secrets
+backups
+exports
+tests
+docs
+*.key
+*.sqlite3*

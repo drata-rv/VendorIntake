@@ -1,0 +1,339 @@
+@font-face {
+    font-family: 'Geist';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/Geist-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Geist';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('fonts/Geist-Medium.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Geist';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('fonts/Geist-SemiBold.ttf') format('truetype');
+}
+
+/* single Mono file (SemiBold) serves the whole 400-600 range */
+@font-face {
+    font-family: 'Geist Mono';
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+    src: url('fonts/GeistMono-SemiBold.ttf') format('truetype');
+}
+
+/* cosmos/constants/tokens/src/lib/tokens/global/* */
+:root {
+    --font-family-default: 'Geist', 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-family-monospaced: 'Geist Mono', 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'Ubuntu Mono', 'Roboto Mono', Menlo, Monaco, Consolas, monospace;
+
+    --font-weight-regular: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --font-size-100: 12px;
+    --font-size-200: 14px;
+    --font-size-300: 16px;
+    --font-size-400: 20px;
+    --font-size-500: 24px;
+    --font-size-600: 32px;
+    --line-height-100: 18px;
+    --line-height-200: 20px;
+    --line-height-300: 24px;
+    --line-height-400: 30px;
+    --line-height-500: 32px;
+    --line-height-600: 48px;
+
+    --dimension-0x: 0px;
+    --dimension-025x: 1px;
+    --dimension-05x: 2px;
+    --dimension-1x: 4px;
+    --dimension-2x: 8px;
+    --dimension-3x: 12px;
+    --dimension-4x: 16px;
+    --dimension-6x: 24px;
+    --dimension-8x: 32px;
+    --dimension-10x: 40px;
+    --dimension-12x: 48px;
+    --dimension-16x: 64px;
+    --dimension-20x: 80px;
+    --dimension-24x: 96px;
+    --dimension-32x: 128px;
+    --dimension-36x: 144px;
+    --dimension-40x: 160px;
+    --dimension-48x: 192px;
+    --dimension-56x: 224px;
+    --dimension-64x: 256px;
+    --dimension-72x: 288px;
+    --dimension-80x: 320px;
+    --dimension-88x: 352px;
+    --dimension-96x: 384px;
+    --dimension-104x: 416px;
+    --dimension-112x: 448px;
+    --dimension-120x: 480px;
+    --dimension-170x: 680px;
+    --dimension-205x: 820px;
+    --dimension-none: var(--dimension-0x);
+    --dimension-xs: var(--dimension-05x);
+    --dimension-sm: var(--dimension-1x);
+    --dimension-md: var(--dimension-2x);
+    --dimension-lg: var(--dimension-3x);
+    --dimension-xl: var(--dimension-4x);
+    --dimension-2xl: var(--dimension-6x);
+    --dimension-3xl: var(--dimension-8x);
+    --dimension-4xl: var(--dimension-10x);
+    --dimension-5xl: var(--dimension-12x);
+    --dimension-6xl: var(--dimension-16x);
+
+    --border-radius-0x: 0px;
+    --border-radius-1x: 2px;
+    --border-radius-2x: 4px;
+    --border-radius-4x: 8px;
+    --border-radius-pill: 99px;
+    --border-radius-circle: 50%;
+    --border-radius-none: var(--border-radius-0x);
+    --border-radius-sm: var(--border-radius-1x);
+    --border-radius-md: var(--border-radius-2x);
+    --border-radius-lg: var(--border-radius-4x);
+
+    --border-width-0: 0px;
+    --border-width-1: 1px;
+    --border-width-2: 2px;
+    --border-width-4: 4px;
+    --border-width-none: var(--border-width-0);
+    --border-width-sm: var(--border-width-1);
+    --border-width-md: var(--border-width-2);
+    --border-width-lg: var(--border-width-4);
+
+    --shadow-100: 0px 2px 4px rgba(41, 42, 51, 0.12);
+    --shadow-200: 0px 4px 12px rgba(41, 42, 51, 0.08), 0px 2px 2px rgba(41, 42, 51, 0.02);
+    --shadow-300: 0px 16px 24px rgba(41, 42, 51, 0.08), 0px 4px 8px rgba(41, 42, 51, 0.02);
+
+    --breakpoint-xs: 320px;
+    --breakpoint-sm: 480px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1280px;
+    --breakpoint-2xl: 1440px;
+    --breakpoint-3xl: 1920px;
+
+    --app-nav-collapsed-width: 52px;
+    --app-nav-expanded-width: 200px;
+    --min-appmain-width: 924px;
+    --max-centered-appmain-width: 884px;
+    --centered-content-width: var(--dimension-205x);
+    --control-height: 36px;
+}
+
+/* themes/{light,dark}/theme.*.json resolved through palette.*.json */
+:root,
+[data-theme='light'] {
+    color-scheme: light;
+    --text-neutral-initial: #151E22;
+    --text-neutral-faded: #596064;
+    --text-neutral-inverted: #FFFFFF;
+    --text-neutral-hover: #0F161A;
+    --text-neutral-disabled: #B3BABD;
+    --text-primary-initial: #2E4DFF;
+    --text-primary-hover: #2039E2;
+    --text-primary-selected: #1D33B6;
+    --text-primary-inverted: #BEDAFF;
+    --text-primary-faded: #6E9AFF;
+    --text-critical-initial: #AA2200;
+    --text-critical-hover: #AA2200;
+    --text-critical-selected: #5B0001;
+    --text-warning-initial: #562D0B;
+    --text-warning-hover: #562D0B;
+    --text-success-initial: #00384A;
+    --text-success-hover: #00384A;
+    --text-menu-initial: #151E22;
+    --text-menu-faded: #596064;
+
+    --background-neutral-backdrop: #0F161A;
+    --background-neutral-canvas-base: #F5F6F7;
+    --background-neutral-canvas-subtle: #EEEFF0;
+    --background-neutral-emphasis-mild: #EEEFF0;
+    --background-neutral-emphasis-moderate: #D9DCDE;
+    --background-neutral-emphasis-strong: #596064;
+    --background-neutral-surface-base-default: #FFFFFF;
+    --background-neutral-surface-base-hover: #F5F6F7;
+    --background-neutral-surface-base-active: #EEEFF0;
+    --background-neutral-surface-base-disabled: #D9DCDE;
+    --background-neutral-surface-subtle-default: #FFFFFF;
+    --background-neutral-surface-subtle-hover: #F5F6F7;
+    --background-primary-mild: #D7EAFF;
+    --background-primary-moderate: #BEDAFF;
+    --background-primary-strong-initial: #2E4DFF;
+    --background-primary-strong-hover: #2039E2;
+    --background-primary-strong-active: #1D33B6;
+    --background-critical-mild: #FDCFD7;
+    --background-critical-moderate: #EE9DA3;
+    --background-critical-strong-initial: #E73F48;
+    --background-critical-strong-hover: #D53641;
+    --background-critical-strong-active: #AA2200;
+    --background-warning-mild: #FDF9CA;
+    --background-warning-moderate: #FCF4A8;
+    --background-warning-strong: #FBF088;
+    --background-success-mild: #D0EFF8;
+    --background-success-moderate: #B1E3F2;
+    --background-success-strong: #005069;
+    --background-menu-initial: #FFFFFF;
+    --background-menu-hover: #EEEFF0;
+    --background-menu-selected: #EEEFF0;
+    --background-menu-active: #D9DCDE;
+
+    --border-neutral-initial: #B3BABD;
+    --border-neutral-faded: #D9DCDE;
+    --border-neutral-hover: #0F161A;
+    --border-neutral-inverted: #FFFFFF;
+    --border-neutral-disabled: #EEEFF0;
+    --border-primary-initial: #2E4DFF;
+    --border-primary-hover: #1D33B6;
+    --border-primary-faded: #BEDAFF;
+    --border-primary-focus: #4C75FF;
+    --border-critical-initial: #E73F48;
+    --border-critical-hover: #D53641;
+    --border-critical-faded: #E4787F;
+    --border-warning-initial: #A7681B;
+    --border-warning-hover: #562D0B;
+    --border-warning-faded: #FBF088;
+    --border-success-initial: #00779C;
+    --border-success-hover: #005069;
+    --border-success-faded: #80D0E8;
+    --border-menu-initial: #B3BABD;
+    --border-menu-faded: #D9DCDE;
+
+    --icon-neutral-initial: #151E22;
+    --icon-neutral-faded: #596064;
+    --icon-neutral-inverted: #FFFFFF;
+    --icon-neutral-hover: #0F161A;
+    --icon-neutral-disabled: #B3BABD;
+    --icon-primary-initial: #2E4DFF;
+    --icon-primary-hover: #2039E2;
+    --icon-primary-selected: #1D33B6;
+    --icon-primary-inverted: #BEDAFF;
+    --icon-critical-initial: #AA2200;
+    --icon-critical-hover: #AA2200;
+    --icon-critical-selected: #5B0001;
+    --icon-warning-initial: #562D0B;
+    --icon-warning-hover: #562D0B;
+    --icon-success-initial: #00384A;
+    --icon-success-hover: #00384A;
+    --icon-menu-initial: #151E22;
+    --icon-menu-faded: #596064;
+    --icon-decorative: #FFFFFF;
+
+    /* legacy alias name with alpha 0.50 (0.90 dark); -initial is the COSMOS.md spelling of -default */
+    --neutral-background-backdrop: rgba(15, 22, 26, 0.5);
+    --background-neutral-surface-base-initial: #FFFFFF;
+}
+
+[data-theme='dark'] {
+    color-scheme: dark;
+    --text-neutral-initial: #F5FFFF;
+    --text-neutral-faded: #B9C2C3;
+    --text-neutral-inverted: #181F23;
+    --text-neutral-hover: #DEE8E8;
+    --text-neutral-disabled: #A5ADAF;
+    --text-primary-initial: #A9C1FF;
+    --text-primary-hover: #84A3FF;
+    --text-primary-selected: #A9C1FF;
+    --text-primary-inverted: #0E006E;
+    --text-primary-faded: #6484FF;
+    --text-critical-initial: #FFA597;
+    --text-critical-hover: #FFA597;
+    --text-critical-selected: #FFCFC5;
+    --text-warning-initial: #FFFFDA;
+    --text-warning-hover: #FFFFDA;
+    --text-success-initial: #9CEEFF;
+    --text-success-hover: #9CEEFF;
+    --text-menu-initial: #F5FFFF;
+    --text-menu-faded: #B9C2C3;
+
+    --background-neutral-backdrop: #181F23;
+    --background-neutral-canvas-base: #181F23;
+    --background-neutral-canvas-subtle: #40484B;
+    --background-neutral-emphasis-mild: #40484B;
+    --background-neutral-emphasis-moderate: #7D8487;
+    --background-neutral-emphasis-strong: #B9C2C3;
+    --background-neutral-surface-base-default: #202628;
+    --background-neutral-surface-base-hover: #181F23;
+    --background-neutral-surface-base-active: #545C5F;
+    --background-neutral-surface-base-disabled: #91999B;
+    --background-neutral-surface-subtle-default: #40484B;
+    --background-neutral-surface-subtle-hover: #181F23;
+    --background-primary-mild: #0E006E;
+    --background-primary-moderate: #171290;
+    --background-primary-strong-initial: #6484FF;
+    --background-primary-strong-hover: #84A3FF;
+    --background-primary-strong-active: #A9C1FF;
+    --background-critical-mild: #460000;
+    --background-critical-moderate: #6B0000;
+    --background-critical-strong-initial: #FF7463;
+    --background-critical-strong-hover: #FFA597;
+    --background-critical-strong-active: #FFCFC5;
+    --background-warning-mild: #513615;
+    --background-warning-moderate: #896D2C;
+    --background-warning-strong: #FDF6BD;
+    --background-success-mild: #002335;
+    --background-success-moderate: #003A51;
+    --background-success-strong: #63B7D6;
+    --background-menu-initial: #202628;
+    --background-menu-hover: #181F23;
+    --background-menu-selected: #545C5F;
+    --background-menu-active: #697173;
+
+    --border-neutral-initial: #697173;
+    --border-neutral-faded: #545C5F;
+    --border-neutral-hover: #A5ADAF;
+    --border-neutral-inverted: #DEE8E8;
+    --border-neutral-disabled: #697173;
+    --border-primary-initial: #4E69E5;
+    --border-primary-hover: #6484FF;
+    --border-primary-faded: #2633AC;
+    --border-primary-focus: #394FC8;
+    --border-critical-initial: #FF3128;
+    --border-critical-hover: #E40000;
+    --border-critical-faded: #930000;
+    --border-warning-initial: #F7DF72;
+    --border-warning-hover: #F6D95C;
+    --border-warning-faded: #F9E688;
+    --border-success-initial: #489CBB;
+    --border-success-hover: #3A90AE;
+    --border-success-faded: #006A86;
+    --border-menu-initial: #697173;
+    --border-menu-faded: #545C5F;
+
+    --icon-neutral-initial: #F5FFFF;
+    --icon-neutral-faded: #B9C2C3;
+    --icon-neutral-inverted: #181F23;
+    --icon-neutral-hover: #DEE8E8;
+    --icon-neutral-disabled: #A5ADAF;
+    --icon-primary-initial: #A9C1FF;
+    --icon-primary-hover: #84A3FF;
+    --icon-primary-selected: #A9C1FF;
+    --icon-primary-inverted: #0E006E;
+    --icon-critical-initial: #FFA597;
+    --icon-critical-hover: #FFA597;
+    --icon-critical-selected: #FFCFC5;
+    --icon-warning-initial: #FFFFDA;
+    --icon-warning-hover: #FFFFDA;
+    --icon-success-initial: #9CEEFF;
+    --icon-success-hover: #9CEEFF;
+    --icon-menu-initial: #F5FFFF;
+    --icon-menu-faded: #B9C2C3;
+    --icon-decorative: #F5FFFF;
+
+    /* legacy alias name with alpha 0.90 */
+    --neutral-background-backdrop: rgba(24, 31, 35, 0.9);
+    --background-neutral-surface-base-initial: #202628;
+}

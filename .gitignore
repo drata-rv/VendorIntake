@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+data/
+secrets/
+backups/
+exports/
+*.key
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
