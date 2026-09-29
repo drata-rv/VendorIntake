@@ -128,6 +128,7 @@ def register_cli(app):
         conn = _conn(app)
         count = 0
         try:
+            # One transaction: partial re-encryption would leave rows under two keys.
             with db.tx(conn):
                 for table, columns in REENCRYPT.items():
                     for row in conn.execute(f"SELECT id, {', '.join(columns)} FROM {table}").fetchall():

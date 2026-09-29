@@ -58,6 +58,7 @@ def fetch_definitions(row) -> dict:
         client.close()
 
 
+# Snapshot compared before each custom-field write to detect tenant drift.
 def definition_fingerprint(defs: dict, mapped_ids) -> dict:
     keys = ("type", "isRequired", "readOnly")
     fp = {"mapped": {str(i): _pick(defs.get(i), keys) for i in sorted(mapped_ids)}, "required": sorted(

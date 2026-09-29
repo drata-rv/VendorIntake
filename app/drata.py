@@ -82,6 +82,7 @@ class Gate:
             self._last = time.monotonic()
 
 
+# Only failures before the TCP/TLS session exists prove no request bytes were sent.
 def _never_connected(exc: requests.exceptions.ConnectionError) -> bool:
     inner = exc.args[0] if exc.args else None
     if isinstance(inner, MaxRetryError):
@@ -135,6 +136,7 @@ class DrataClient:
         headers = {"Authorization": f"Bearer {self._key}", "Accept": "application/json",
                    "Content-Type": "application/json", "User-Agent": USER_AGENT}
         data = None if body is None else json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode()
+        # Retries stay off: a timeout can follow a create Drata already committed.
         resp = None
         try:
             resp = self._session.request(

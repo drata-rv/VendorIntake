@@ -1,6 +1,7 @@
 from flask import Blueprint, current_app, g, jsonify, make_response, redirect, render_template, request, url_for
 
 from . import auth, connection, forms, mappings, submissions
+from .crypto import dec_json
 from .db import audit, connect, get_db, iso, schema_current, settings_row, tx
 from .errors import ApiFail
 
@@ -131,7 +132,15 @@ def intake():
     conn = get_db()
     active = forms.active(conn)
     schema = forms.get_version(conn, active["version"]) if active["version"] and active["enabled"] else None
-    return render_template("intake.html", form=schema, form_version=active["version"])
+    prefill = None
+    origin = request.args.get("correct")
+    if schema and origin:
+        row = conn.execute(
+            "SELECT answers_enc FROM submissions WHERE id = ? AND requester_id = ? AND state = 'NEEDS_CORRECTION'"
+            " AND form_version = ? AND answers_enc IS NOT NULL", (origin, uid(), active["version"])).fetchone()
+        if row:
+            prefill = {"originSubmissionId": origin, "answers": dec_json(row["answers_enc"])}
+    return render_template("intake.html", form=schema, form_version=active["version"], prefill=prefill)
 
 
 @bp.get("/history")

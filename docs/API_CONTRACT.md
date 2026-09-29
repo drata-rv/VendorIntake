@@ -31,6 +31,9 @@ Base URL `https://public-api.drata.com/public/v2`. Headers on every call: `Autho
 - Error envelope `{statusCode, message, code, debugInfo}`; `message` may be a string or an array of validation objects. Only `statusCode` and numeric `code` are used.
 - `GET /vendors?expand[]=customFields` valid. Enum: `customFields, documents, integrations, lastQuestionnaire, latestSecurityReviews, reviews, vendorUser, vendorRelationshipContact, dataAccessedOrProcessed, scheduleConfiguration, customVendorType, inherentRiskLevel, residualRiskLevel`. Unset custom fields read back as `{customFieldId, name}` without `value`.
 - Python `urllib` default User-Agent returned 403; `requests` default and explicit UA return 200. Adapter sets an explicit UA.
+- `POST /vendors` returned 201 with `id`; `PUT /vendors/{id}` returned 200 with the same `id` (key had create and update scopes).
+- Contact email is stored fully lowercased (`Bridge-Test@Example.COM` reads back `bridge-test@example.com`). Read-back compares case-insensitively.
+- Custom fields read back with `expand[]=customFields` as `{customFieldId, name, value}` for `TEXT`, `LONG_TEXT`, `NUMBER` (JSON number). Unset fields have no `value` key. `URL` unverified (no such definition in the test tenant).
 - List rows include `notes` in full, used for marker matching without per-vendor GET.
 
 ## Deviation from spec: scan strategy

@@ -76,6 +76,7 @@ def create_app(overrides: dict | None = None) -> Flask:
     register_cli(app)
 
     app.context_processor(_template_context)
+    # Flask CLI sets FLASK_RUN_FROM_CLI; startup recovery must not run for CLI commands.
     if not os.environ.get("FLASK_RUN_FROM_CLI") and not app.config.get("SKIP_STARTUP"):
         _startup(app)
     return app

@@ -143,6 +143,7 @@ def prelogin_issue(response) -> str:
     return nonce
 
 
+# Login CSRF: form nonce must equal the Fernet-encrypted nonce in the cookie.
 def prelogin_valid() -> bool:
     cookie, supplied = request.cookies.get(PRELOGIN_COOKIE, ""), request.form.get("csrf_token", "")
     try:
@@ -188,6 +189,7 @@ def authenticate(email: str, password: str, ip: str):
         _verify(_DUMMY_HASH, "x")
         return None
     user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    # Dummy hash keeps timing equal for unknown accounts.
     ok = _verify(user["password_hash"] if user else _DUMMY_HASH, password or "")
     if not (user and ok and user["active"]):
         _record_failure(conn, email, ip)

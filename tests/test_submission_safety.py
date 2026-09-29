@@ -277,3 +277,18 @@ def test_form_and_connection_rechecked_after_lock_acquired(app, requester, fake,
     resp = requester.submit(answers())
     assert resp.status_code == status and body_of(resp)["error"]["code"] == code
     assert fake.calls == [] and conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0] == 0
+
+
+def test_correction_links_to_original_only_for_own_rejected_submission(requester, other, fake, conn):
+    fake.create_mode, fake.create_reply = "reply", envelope(400)
+    requester.submit(answers())
+    original = only_submission(conn)["id"]
+    fake.create_mode = "ok"
+    fixed = {"formVersion": 1, "answers": answers(vendor_name="Zorblax Industries Ltd")}
+    foreign = other.post("/api/submissions", {**fixed, "originSubmissionId": original}, key=str(uuid.uuid4()))
+    assert foreign.status_code == 422 and fake.post_count == 1
+    linked = requester.post("/api/submissions", {**fixed, "originSubmissionId": original}, key=str(uuid.uuid4()))
+    assert linked.status_code == 201
+    assert sub(conn, body_of(linked)["submissionId"])["origin_submission_id"] == original
+    again = requester.post("/api/submissions", {**fixed, "originSubmissionId": original}, key=str(uuid.uuid4()))
+    assert again.status_code in (201, 202) and sub(conn, original)["state"] == "NEEDS_CORRECTION"

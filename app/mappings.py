@@ -39,6 +39,7 @@ NATIVE = {
     "dataStored": {**_LONG, "prop": "dataStored"},
     "location": {**_LONG, "prop": "location"},
     "vendor_contact_name": {"inputs": {"text"}, "max": 191, "prop": "contactAtVendor"},
+    # Create takes contactEmail; update and reads use contactsEmail.
     "vendor_contact_emails": {"inputs": {"email_list"}, "max": 191, "prop": "contactEmail", "update_prop": "contactsEmail"},
     "hasPii": {"inputs": {"boolean"}, "prop": "hasPii", "must_require": True},
     "isSubProcessor": {"inputs": {"boolean"}, "prop": "isSubProcessor", "must_require": True},
@@ -376,10 +377,12 @@ def _one(fld, value, err):
     return sorted(set(value), key=[o["value"] for o in fld["options"]].index)
 
 
+# Decimal only. Drata cost is integer cents as a string.
 def cost_cents(amount: str) -> str:
     return str((Decimal(amount) * 100).to_integral_exact())
 
 
+# At most 15 significant digits below 1e9, so float repr round-trips.
 def custom_number(text: str):
     d = Decimal(text)
     return int(d) if d == d.to_integral_value() else float(d)
@@ -472,6 +475,7 @@ def vendor_prop(vendor: dict, prop: str):
     return vendor.get("contactsEmail") if prop == "contactEmail" else vendor.get(prop)
 
 
+# Read-back covers only properties the bridge sent.
 def mismatches(vendor: dict, expected: dict) -> list[str]:
     bad = [p for p, want in expected.items() if p != "customFields" and not same(p, want, vendor_prop(vendor, p))]
     have = {c.get("customFieldId"): c for c in vendor.get("customFields") or []}

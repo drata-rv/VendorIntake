@@ -54,6 +54,7 @@ def close_db(_exc=None) -> None:
 
 @contextmanager
 def tx(conn: sqlite3.Connection):
+    # Nested use joins the outer transaction.
     if conn.in_transaction:
         yield conn
         return

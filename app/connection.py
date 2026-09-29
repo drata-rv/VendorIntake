@@ -138,6 +138,7 @@ def _resolve_key(body: dict, row) -> str:
     return key.strip()
 
 
+# Holds the write lock so a credential swap cannot race an in-flight write.
 def save_connection(actor: str, body: dict) -> dict:
     auth.require_recent_login()
     conn = get_db()

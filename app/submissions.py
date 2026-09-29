@@ -116,6 +116,7 @@ def issue_nonce(conn, sid: str, action: str, extra=None) -> dict:
     return {"nonce": nonce, "expiresAt": expires}
 
 
+# One UPDATE consumes the nonce; rowcount 1 means this caller won.
 def consume_nonce(conn, sid: str, action: str, nonce, extra=None) -> None:
     row = row_or_404(conn, sid)
     if not isinstance(nonce, str) or not nonce:
@@ -236,6 +237,7 @@ def marker_matches(vendors: dict, mark: str) -> list[dict]:
     return [v for v in vendors.values() if mark in (v.get("notes") or "")]
 
 
+# Unresolved bridge writes block another create until reconciled.
 def local_matches(conn, sid: str, payload: dict) -> list[dict]:
     name, host = mappings.normalized_name(payload.get("name")), mappings.normalized_host(payload.get("url"))
     marks = ",".join("?" * len(UNRESOLVED_WRITE))
@@ -311,6 +313,7 @@ def _run_create(conn, sid: str, actor: str, approved: set | None = None) -> None
             vendors = client.scan_vendors()
         except (ApiError, DrataError) as exc:
             return _preflight_failure(conn, sid, exc, actor)
+        # A marker already in a listed vendor proves an earlier write. Adopt it; never create again.
         hits = marker_matches(vendors, mark)
         if hits:
             return _adopt_marker(conn, sid, client, hits, actor)
@@ -370,6 +373,8 @@ def _dispatch_create(conn, sid, client, payload, row, actor):
     return _classify_failure(conn, sid, reply, actor)
 
 
+# Only Drata's own error envelope is a recognized rejection.
+# Anything else after dispatch stays UNKNOWN.
 def _classify_failure(conn, sid, reply, actor, update: bool = False):
     status, recognized = reply.status, reply.recognized_error
     if recognized and status == 400:
@@ -853,6 +858,7 @@ def recover_startup(conn) -> int:
     return len(rows)
 
 
+# A restored backup can predate a successful Drata write.
 def restore_flag(conn) -> int:
     recover_startup(conn)
     rows = conn.execute("SELECT id FROM submissions WHERE state IN ('RETRYABLE', 'BLOCKED')").fetchall()
