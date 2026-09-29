@@ -12,3 +12,5 @@ exports/
 *.sqlite3-wal
 *.sqlite3-shm
 .claude/
+.demo/
+.DS_Store
