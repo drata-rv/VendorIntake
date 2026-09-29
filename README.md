@@ -21,7 +21,6 @@ Customer-hosted Flask app. Requester submits vendor-intake answers; server maps 
 | `app/forms.py` | Immutable form versions, publish checks, custom-field drift fingerprint |
 | `app/auth.py` | Argon2id, server-side sessions, CSRF/Origin, login limits |
 | `app/cli.py` | `init-db migrate check-schema create-admin reset-password backup restore-check cleanup rotate-key` |
-| `docs/` | `OPERATIONS.md`, `API_CONTRACT.md`, `SMOKE_TEST.md` |
 
 ## Configuration
 
@@ -48,7 +47,7 @@ docker compose run --rm bridge flask --app app create-admin
 docker compose up -d
 ```
 
-Then: point HTTPS proxy at `127.0.0.1:8000` (response timeout >= 70 s, body limit 128 KiB), sign in, connect scoped Drata key, configure form, inspect offline preview, run `docs/SMOKE_TEST.md`, publish.
+Then: point HTTPS proxy at `127.0.0.1:8000` (response timeout >= 70 s, body limit 128 KiB), sign in, connect scoped Drata key, configure form, inspect offline preview, publish.
 
 ## Local run (development)
 
@@ -84,4 +83,4 @@ Create key `Vendor Intake Bridge` with custom scopes. Create-only: Company Setti
 - Duplicate detection compares name and hostname equality. Another system can create a vendor between the scan and the write.
 - Update runs GET, then PUT. The pair is not atomic; enable updates when the bridge owns the selected fields during execution.
 - Deleting a bridge record leaves the Drata record in place.
-- Container build and `docker compose` run: untested in the authoring environment. Exercised paths are listed in `docs/SMOKE_TEST.md`.
+- Container build and `docker compose` run: untested in the authoring environment.
