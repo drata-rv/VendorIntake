@@ -58,12 +58,14 @@ Explicit-status scan alone misses vendors with null status. Bridge scans both an
 | Recognized 412 | `BLOCKED` / `TERMS_NOT_ACCEPTED` |
 | Recognized 429 | `RETRYABLE` / `RATE_LIMITED`, not-before persisted (`Retry-After` seconds or HTTP-date, default 60 s) |
 | Write 5xx, 408, timeout, reset, unrecognized body, non-201 success | `UNKNOWN` |
-| Write failed before connect (`ConnectTimeout`, `NewConnectionError`, TLS handshake, budget) | `RETRYABLE` / `NOT_SENT` |
+| Write failed before connect (`ConnectTimeout`, `NewConnectionError`, budget exhausted before send) | `RETRYABLE` / `NOT_SENT`. TLS errors are treated as uncertain (`UNKNOWN`): they can occur after the request was sent |
 | Update 404 | `NEEDS_REVIEW` / `TARGET_MISSING` |
 | Read-back unavailable | `NEEDS_REVIEW` / `VERIFY_PENDING` |
 | Read-back differs | `NEEDS_REVIEW` / `VERIFY_MISMATCH` (property names only stored) |
 
 "Recognized" = JSON object with `statusCode` equal to HTTP status and integer `code`.
+
+`Retry-After` (seconds or HTTP-date) is clamped to 1-3600 s. A scan whose rows omit `notes` is treated as `SCAN_INCOMPLETE` because marker matching depends on it. A write needs at least 20 s of operation budget left after the scan, else `RETRYABLE` / `PREFLIGHT_BUDGET`.
 
 ## Application routes
 

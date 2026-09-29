@@ -53,6 +53,8 @@ def hash_password(password: str) -> str:
 
 
 def _verify(stored: str, password: str) -> bool:
+    if not isinstance(password, str):
+        return False
     try:
         return _hasher.verify(stored, password)
     except (VerificationError, InvalidHashError):
@@ -127,7 +129,11 @@ def load_session() -> None:
 def check_request_origin() -> None:
     if request.method not in UNSAFE:
         return
-    if request.headers.get("Origin") != current_app.config["APP_ORIGIN"]:
+    origin = request.headers.get("Origin")
+    # Referrer-Policy: no-referrer makes browsers send "Origin: null" on same-origin form posts.
+    # Sec-Fetch-Site cannot be set by page script, so it proves same-origin for that case only.
+    same_origin_null = origin == "null" and request.headers.get("Sec-Fetch-Site") == "same-origin"
+    if origin != current_app.config["APP_ORIGIN"] and not same_origin_null:
         raise ApiFail(403, "CSRF_ORIGIN", "Request origin rejected.")
     if request.endpoint == "routes.login_post" or g.get("user") is None:
         return

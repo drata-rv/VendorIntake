@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.exceptions import ConnectTimeoutError, NewConnectionError, MaxRetryError, SSLError as Urllib3SSLError
+from urllib3.exceptions import ConnectTimeoutError, MaxRetryError, NewConnectionError
 
 DEFAULT_BASE_URL = "https://public-api.drata.com/public/v2"
 USER_AGENT = "VendorIntakeBridge/1.0"
@@ -15,6 +15,7 @@ CONNECT_TIMEOUT = 5
 READ_TIMEOUT = 15
 TOTAL_BUDGET = 45
 MAX_PAGES = 20
+MAX_RETRY_AFTER = 3600
 MAX_BODY_BYTES = 32 * 1024 * 1024
 ALL_STATUSES = ["PROSPECTIVE", "ACTIVE", "ARCHIVED", "APPROVED", "REJECTED", "FLAGGED",
                 "ON_HOLD", "OFFBOARDED", "UNDER_REVIEW", "NONE"]
@@ -86,7 +87,7 @@ class Gate:
 def _never_connected(exc: requests.exceptions.ConnectionError) -> bool:
     inner = exc.args[0] if exc.args else None
     if isinstance(inner, MaxRetryError):
-        return isinstance(inner.reason, (NewConnectionError, ConnectTimeoutError, Urllib3SSLError))
+        return isinstance(inner.reason, (NewConnectionError, ConnectTimeoutError))
     return False
 
 
@@ -95,10 +96,10 @@ def parse_retry_after(value: str | None) -> tuple[float | None, bool]:
         return None, False
     value = value.strip()
     if value.isdigit():
-        return float(value), False
+        return min(float(value), MAX_RETRY_AFTER), False
     try:
         when = parsedate_to_datetime(value)
-        return max(0.0, when.timestamp() - time.time()), False
+        return min(max(0.0, when.timestamp() - time.time()), MAX_RETRY_AFTER), False
     except (TypeError, ValueError):
         return None, True
 

@@ -17,8 +17,10 @@ from .errors import ApiFail
 TERMINAL = {"CREATED", "UPDATED", "CANCELLED"}
 UNRESOLVED_WRITE = ("IN_PROGRESS", "UNKNOWN", "NEEDS_REVIEW", "RETRYABLE", "BLOCKED")
 NONCE_TTL = 300
+MAX_INT = 2**31 - 1
+MIN_WRITE_BUDGET = 20
 DEFAULT_RATE_LIMIT_SECONDS = 60
-ENC_COLUMNS = ("answers_enc", "payload_enc", "snapshot_enc", "candidates_enc")
+ENC_COLUMNS = ("answers_enc", "payload_enc", "snapshot_enc", "candidates_enc", "duplicate_reason", "last_error", "result_link")
 UPDATE_PROPS = sorted({(s.get("update_prop") or s["prop"]) for k, s in mappings.NATIVE.items() if k in mappings.UPDATABLE})
 
 MESSAGES = {
@@ -71,9 +73,19 @@ def load_link(reply_vendor: dict) -> str | None:
     return safe_link(href, current_app.config["DRATA_LINK_HOSTS"])
 
 
+def _linked(row) -> bool:
+    return row["state"] == "CANCELLED" and row["state_reason"] == "LINKED_EXISTING"
+
+
+def message_for(row) -> str:
+    return "Linked existing vendor. No vendor was created." if _linked(row) else MESSAGES[row["state"]]
+
+
 def public_body(row, admin: bool = False) -> dict:
-    body = {"submissionId": row["id"], "state": row["state"], "message": MESSAGES[row["state"]],
-            "drataId": row["result_drata_id"], "link": row["result_link"], "operation": row["operation"]}
+    hidden = _linked(row) and not admin
+    body = {"submissionId": row["id"], "state": row["state"], "message": message_for(row),
+            "drataId": None if hidden else row["result_drata_id"], "link": None if hidden else row["result_link"],
+            "operation": row["operation"]}
     if admin:
         body["reason"] = row["state_reason"]
     return body
@@ -162,6 +174,8 @@ def _require_active_form(conn, version: int) -> None:
 def _origin_of(conn, user, origin_id) -> str | None:
     if origin_id is None:
         return None
+    if not isinstance(origin_id, str) or len(origin_id) > 64:
+        raise ApiFail(422, "INVALID_INPUT", "originSubmissionId must be a submission id.")
     row = conn.execute("SELECT requester_id, state FROM submissions WHERE id = ?", (origin_id,)).fetchone()
     if row is None or row["requester_id"] != user["id"] or row["state"] != "NEEDS_CORRECTION":
         raise ApiFail(422, "INVALID_INPUT", "originSubmissionId must reference your submission awaiting correction.")
@@ -171,19 +185,21 @@ def _origin_of(conn, user, origin_id) -> str | None:
 def submit(user: dict, body, idem_key: str | None):
     conn = get_db()
     key = _clean_key(idem_key)
-    if not isinstance(body, dict) or not isinstance(body.get("formVersion"), int) or isinstance(body.get("formVersion"), bool):
+    version = body.get("formVersion") if isinstance(body, dict) else None
+    if not isinstance(version, int) or isinstance(version, bool) or not 1 <= version <= MAX_INT:
         raise ApiFail(400, "INVALID_INPUT", "Body must be {formVersion, answers}.")
-    schema = forms.get_version(conn, body["formVersion"])
-    if schema is None:
-        raise ApiFail(409, "FORM_CHANGED", "Form changed. Review current fields before submitting.")
+    existing = _by_key(conn, key)
+    if existing is None:
+        _require_active_form(conn, version)
+    elif existing["form_version"] != version:
+        raise ApiFail(409, "IDEMPOTENCY_CONFLICT", "This idempotency key was already used for a different request.")
+    schema = forms.get_version(conn, version)
     clean, errors = mappings.validate_answers(schema, body.get("answers"))
     if errors:
         raise ApiFail(422, "VALIDATION_FAILED", "Correct the highlighted fields.", errors)
-    digest_value = request_hash(user["id"], body["formVersion"], clean)
-    existing = _by_key(conn, key)
+    digest_value = request_hash(user["id"], version, clean)
     if existing:
         return _replay(existing, user, digest_value)
-    _require_active_form(conn, body["formVersion"])
 
     lock = acquire_write_lock()
     try:
@@ -271,14 +287,15 @@ def _rate_limit_pending(settings) -> bool:
 
 def _note_rate_limit(conn, reply) -> None:
     seconds = reply.retry_after if reply.retry_after is not None else DEFAULT_RATE_LIMIT_SECONDS
+    seconds = min(max(seconds, 1), 3600)
     with tx(conn):
         conn.execute("UPDATE settings SET rate_limit_until = ? WHERE id = 1", (in_seconds(seconds),))
 
 
 def _preflight_failure(conn, sid, exc, actor):
-    if isinstance(exc, ScanIncomplete):
+    if isinstance(exc, (ScanIncomplete, BudgetExceeded)):
         return set_state(conn, sid, "RETRYABLE", "SCAN_INCOMPLETE", "SCAN_INCOMPLETE", actor)
-    if isinstance(exc, (Transport, BudgetExceeded)):
+    if isinstance(exc, Transport):
         return set_state(conn, sid, "RETRYABLE", "PREFLIGHT_TIMEOUT", exc.kind.upper(), actor)
     status = exc.reply.status
     if status in (401, 403):
@@ -296,38 +313,60 @@ def _preflight_failure(conn, sid, exc, actor):
     return set_state(conn, sid, "BLOCKED", "PREFLIGHT_REJECTED", f"HTTP_{status}", actor)
 
 
+def _require_notes(vendors: dict) -> None:
+    if any("notes" not in v for v in vendors.values()):
+        raise ScanIncomplete("listing omits notes")
+
+
+def _internal_failure(conn, sid: str, actor: str, exc: Exception) -> None:
+    dispatched = conn.execute("SELECT 1 FROM attempts WHERE submission_id = ? AND dispatched = 1 LIMIT 1", (sid,)).fetchone()
+    current_app.logger.error("pipeline failed", extra={"fields": {"submissionId": sid, "errorType": exc.__class__.__name__}})
+    set_state(conn, sid, "UNKNOWN" if dispatched else "RETRYABLE", "INTERNAL_ERROR", exc.__class__.__name__, actor)
+
+
 def _run_create(conn, sid: str, actor: str, approved: set | None = None) -> None:
     row = row_or_404(conn, sid)
     settings = settings_row(conn)
-    schema, payload = forms.get_version(conn, row["form_version"]), _decrypt_payload(row)
-    with tx(conn):
-        set_state(conn, sid, "IN_PROGRESS", "PROCESSING", None, actor)
-    if _rate_limit_pending(settings):
-        return set_state(conn, sid, "RETRYABLE", "RATE_LIMITED", "RATE_LIMIT_WINDOW", actor)
     client = client_for(settings, Budget())
-    mark = mappings.marker(settings["installation_uuid"], sid)
     try:
-        try:
-            if _drifted(client, schema):
-                return set_state(conn, sid, "NEEDS_REVIEW", "CUSTOM_FIELD_DRIFT", None, actor)
-            vendors = client.scan_vendors()
-        except (ApiError, DrataError) as exc:
-            return _preflight_failure(conn, sid, exc, actor)
-        # A marker already in a listed vendor proves an earlier write. Adopt it; never create again.
-        hits = marker_matches(vendors, mark)
-        if hits:
-            return _adopt_marker(conn, sid, client, hits, actor)
-        candidates = find_duplicates(vendors, payload)
-        local = local_matches(conn, sid, payload)
-        pending = [c for c in candidates if approved is None or c["id"] not in approved]
-        if pending or local:
-            reason = "LOCAL_UNRESOLVED_MATCH" if local else "DUPLICATE_SUSPECTED"
-            with tx(conn):
-                set_state(conn, sid, "NEEDS_REVIEW", reason, None, actor, candidates_enc=enc_json(candidates + local))
-            return None
-        _dispatch_create(conn, sid, client, payload, row, actor)
+        with tx(conn):
+            set_state(conn, sid, "IN_PROGRESS", "PROCESSING", None, actor)
+        _create_pipeline(conn, sid, actor, approved, row, settings, client)
+    except ApiFail:
+        raise
+    except Exception as exc:
+        _internal_failure(conn, sid, actor, exc)
     finally:
         client.close()
+
+
+def _create_pipeline(conn, sid, actor, approved, row, settings, client) -> None:
+    schema, payload = forms.get_version(conn, row["form_version"]), _decrypt_payload(row)
+    if _rate_limit_pending(settings):
+        return set_state(conn, sid, "RETRYABLE", "RATE_LIMITED", "RATE_LIMIT_WINDOW", actor)
+    mark = mappings.marker(settings["installation_uuid"], sid)
+    try:
+        if _drifted(client, schema):
+            return set_state(conn, sid, "NEEDS_REVIEW", "CUSTOM_FIELD_DRIFT", None, actor)
+        vendors = client.scan_vendors()
+        _require_notes(vendors)
+    except (ApiError, DrataError) as exc:
+        return _preflight_failure(conn, sid, exc, actor)
+    # A marker already in a listed vendor proves an earlier write. Adopt it; never create again.
+    hits = marker_matches(vendors, mark)
+    if hits:
+        return _adopt_marker(conn, sid, client, hits, actor)
+    candidates = find_duplicates(vendors, payload)
+    local = local_matches(conn, sid, payload)
+    pending = [c for c in candidates if approved is None or c["id"] not in approved]
+    if pending or local:
+        reason = "LOCAL_UNRESOLVED_MATCH" if local else "DUPLICATE_SUSPECTED"
+        with tx(conn):
+            set_state(conn, sid, "NEEDS_REVIEW", reason, None, actor, candidates_enc=enc_json(candidates + local))
+        return None
+    if client.budget.remaining() < MIN_WRITE_BUDGET:
+        return set_state(conn, sid, "RETRYABLE", "PREFLIGHT_BUDGET", "BUDGET", actor)
+    _dispatch_create(conn, sid, client, payload, row, actor)
 
 
 def _start_attempt(conn, sid: str, method: str, path: str, credential_version: int) -> int:
@@ -425,6 +464,12 @@ def _ensure(row, states, code="STATE_CONFLICT", message="Submission is not in a 
         raise ApiFail(409, code, message, submission_id=row["id"])
 
 
+def _fresh(conn, sid, states):
+    row = row_or_404(conn, sid)
+    _ensure(row, states)
+    return row
+
+
 def _require_payload(row):
     if row["payload_purged_at"] or not row["payload_enc"]:
         raise ApiFail(410, "PAYLOAD_EXPIRED", "Submission payload was purged.", submission_id=row["id"])
@@ -444,6 +489,7 @@ def retry(actor: str, sid: str, nonce):
         raise ApiFail(409, "RATE_LIMITED", "Drata rate limit active.", extra={"retryAfter": settings["rate_limit_until"]})
     lock = acquire_write_lock()
     try:
+        _fresh(conn, sid, ("RETRYABLE", "BLOCKED"))
         consume_nonce(conn, sid, "RETRY", nonce)
         with tx(conn):
             audit(conn, actor, "SUBMISSION_RETRY", sid)
@@ -460,6 +506,7 @@ def reconcile(actor: str, sid: str):
     settings = settings_row(conn)
     lock = acquire_write_lock()
     try:
+        row = _fresh(conn, sid, ("UNKNOWN", "NEEDS_REVIEW", "RETRYABLE", "BLOCKED"))
         with tx(conn):
             audit(conn, actor, "SUBMISSION_RECONCILE", sid)
         client = client_for(settings, Budget())
@@ -485,14 +532,14 @@ def _reconcile_create(conn, row, client, actor) -> str:
         return "VERIFIED"
     _require_payload(row)
     vendors = client.scan_vendors()
+    _require_notes(vendors)
     hits = marker_matches(vendors, mappings.marker(settings["installation_uuid"], sid))
     if hits:
         _adopt_marker(conn, sid, client, hits, actor)
         return "MARKER_MATCH"
     if row["state"] == "NEEDS_REVIEW" and row["state_reason"] == "RESTORE_RECONCILE":
         with tx(conn):
-            set_state(conn, sid, "RETRYABLE", "RECONCILED_NO_MARKER", None, actor)
-        return "NO_MARKER_MATCH_RETRYABLE"
+            set_state(conn, sid, "NEEDS_REVIEW", "RESTORE_RECONCILE", "NO_MARKER_MATCH", actor)
     return "NO_MARKER_MATCH"
 
 
@@ -519,12 +566,18 @@ def _reason(body, minimum=10) -> str:
 
 
 def _cancel(conn, row, actor, body):
-    _ensure(row, ("UNKNOWN", "NEEDS_REVIEW", "RETRYABLE", "BLOCKED", "NEEDS_CORRECTION"))
+    states = ("UNKNOWN", "NEEDS_REVIEW", "RETRYABLE", "BLOCKED", "NEEDS_CORRECTION")
+    _ensure(row, states)
     reason = _reason(body)
-    consume_nonce(conn, row["id"], "CANCEL", body.get("nonce"))
-    with tx(conn):
-        set_state(conn, row["id"], "CANCELLED", "CANCELLED_BY_ADMIN", None, actor, duplicate_reason=reason)
-        audit(conn, actor, "SUBMISSION_RESOLVE", row["id"], {"decision": "CANCEL"})
+    lock = acquire_write_lock()
+    try:
+        _fresh(conn, row["id"], states)
+        consume_nonce(conn, row["id"], "CANCEL", body.get("nonce"))
+        with tx(conn):
+            set_state(conn, row["id"], "CANCELLED", "CANCELLED_BY_ADMIN", None, actor, duplicate_reason=reason)
+            audit(conn, actor, "SUBMISSION_RESOLVE", row["id"], {"decision": "CANCEL"})
+    finally:
+        lock.release()
     return 200, public_body(row_or_404(conn, row["id"]), admin=True)
 
 
@@ -536,6 +589,7 @@ def _link_existing(conn, row, actor, body):
     reason = _reason(body, 3)
     lock = acquire_write_lock()
     try:
+        _fresh(conn, row["id"], ("UNKNOWN", "NEEDS_REVIEW", "RETRYABLE", "BLOCKED"))
         consume_nonce(conn, row["id"], "LINK_EXISTING", body.get("nonce"), target)
         client = client_for(settings_row(conn), Budget())
         try:
@@ -555,15 +609,22 @@ def _link_existing(conn, row, actor, body):
     return 200, public_body(row_or_404(conn, row["id"]), admin=True)
 
 
-def _confirm_new(conn, row, actor, body):
+def _confirm_guard(row) -> None:
     _ensure(row, ("NEEDS_REVIEW",))
-    if row["state_reason"] not in ("DUPLICATE_SUSPECTED", "LOCAL_UNRESOLVED_MATCH") or row["operation"] != "CREATE":
-        raise ApiFail(409, "STATE_CONFLICT", "This review reason cannot be confirmed as new.")
+    reason = row["state_reason"]
+    restored = reason == "RESTORE_RECONCILE" and row["last_error"] == "NO_MARKER_MATCH"
+    if row["operation"] != "CREATE" or not (restored or reason in ("DUPLICATE_SUSPECTED", "LOCAL_UNRESOLVED_MATCH")):
+        raise ApiFail(409, "STATE_CONFLICT", "This review reason cannot be confirmed as new. Reconcile restored records first.")
     _require_payload(row)
+
+
+def _confirm_new(conn, row, actor, body):
+    _confirm_guard(row)
     reason = _reason(body)
     approved = {c["id"] for c in dec_json(row["candidates_enc"]) or [] if not str(c["id"]).startswith("L:")}
     lock = acquire_write_lock()
     try:
+        _confirm_guard(row_or_404(conn, row["id"]))
         consume_nonce(conn, row["id"], "CONFIRM_NEW", body.get("nonce"))
         with tx(conn):
             conn.execute("UPDATE submissions SET duplicate_reason = ? WHERE id = ?", (reason, row["id"]))
@@ -589,6 +650,7 @@ def _recreate(conn, row, actor, body):
     payload = mappings.build_create_payload(schema, clean, mappings.marker(settings["installation_uuid"], new_sid))
     lock = acquire_write_lock()
     try:
+        _fresh(conn, row["id"], ("UNKNOWN",))
         consume_nonce(conn, row["id"], "RECREATE", body.get("nonce"))
         with tx(conn):
             set_state(conn, row["id"], "CANCELLED", "RECREATE_AUTHORIZED", None, actor, duplicate_reason=reason)
@@ -677,6 +739,8 @@ def update_confirm(actor: str, sid: str, nonce):
     snap = dec_json(row["snapshot_enc"])
     lock = acquire_write_lock()
     try:
+        if not _update_eligible(row_or_404(conn, sid)):
+            raise ApiFail(409, "STATE_CONFLICT", "Submission is not eligible for an update.")
         consume_nonce(conn, sid, "UPDATE_CONFIRM", nonce, sha({"t": snap["targetId"], "d": snap["desired"]}))
         client = client_for(settings, Budget())
         try:
@@ -778,8 +842,9 @@ def _vendor_name(row):
 
 def summarize(row, admin: bool, unresolved_days: int, emails: dict | None = None) -> dict:
     item = {"id": row["id"], "createdAt": row["created_at"], "updatedAt": row["updated_at"], "state": row["state"],
-            "drataId": row["result_drata_id"], "link": row["result_link"], "operation": row["operation"],
-            "vendorName": _vendor_name(row), "message": MESSAGES[row["state"]]}
+            "drataId": None if _linked(row) and not admin else row["result_drata_id"],
+            "link": None if _linked(row) and not admin else row["result_link"], "operation": row["operation"],
+            "vendorName": _vendor_name(row), "message": message_for(row)}
     if admin:
         item.update({"reason": row["state_reason"], "requesterEmail": (emails or {}).get(row["requester_id"]),
                      "attemptCount": row["attempt_count"], "formVersion": row["form_version"]})

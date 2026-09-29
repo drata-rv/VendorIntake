@@ -215,3 +215,30 @@ def test_credential_change_requires_recent_login(admin, fake, conn):
     assert settings(conn)["credential_version"] == 2
     off = admin.post("/api/admin/connection/disconnect")
     assert off.status_code == 200 and settings(conn)["api_key_enc"] is None and not off.get_json()["configured"]
+
+
+@pytest.mark.parametrize("path,body", [
+    ("/api/account/password", {"currentPassword": ["x"], "newPassword": "a-long-enough-new-password"}),
+    ("/api/account/reauth", {"password": {"x": 1}}),
+    ("/api/admin/submissions/none/action-nonce", {"action": ["RETRY"]}),
+    ("/api/admin/form/publish", {"version": 2 ** 70}),
+    ("/api/admin/connection/test", {"apiKey": "kéy-non-latin"}),
+    ("/api/admin/form", {"schema": {"fields": [{"id": 5, "type": ["text"], "label": {}, "destination": {"kind": "native", "field": []}}]}}),
+])
+def test_malformed_admin_bodies_never_500(admin, path, body):
+    assert admin.post(path, body).status_code in (400, 403, 404, 422)
+
+
+def test_logout_expires_cookies_with_matching_attributes(requester):
+    resp = requester.post("/logout", data={"csrf_token": requester.csrf})
+    cookies = [c for c in resp.headers.getlist("Set-Cookie") if c.startswith("__Host-")]
+    assert cookies and all("Secure" in c and "Path=/" in c for c in cookies)
+
+
+@pytest.mark.parametrize("origin,site,status", [
+    ("null", "same-origin", 200), ("null", "cross-site", 403), ("null", None, 403), ("https://evil.test", "same-origin", 403)])
+def test_null_origin_accepted_only_with_same_origin_fetch_metadata(requester, origin, site, status):
+    headers = {"Sec-Fetch-Site": site} if site else {}
+    resp = requester.post("/api/account/reauth", {"password": "x"}, origin=origin, headers=headers)
+    assert (resp.status_code == 403 and resp.get_json()["error"]["code"] in ("CSRF_ORIGIN", "CURRENT_PASSWORD_INVALID")) or status == 200
+    assert (resp.get_json()["error"]["code"] == "CSRF_ORIGIN") == (status == 403)

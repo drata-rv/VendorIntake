@@ -45,6 +45,7 @@ class FakeDrata:
         return len(self.posts)
 
     def factory(self, api_key, budget=None):
+        self.budget = budget or drata.Budget()
         return self
 
     def add_vendor(self, id=None, **fields):

@@ -65,7 +65,7 @@ Uses the SQLite backup API, mode 0600, refuses to overwrite. Copy to encrypted o
 3. `docker compose run --rm bridge flask --app app restore-check` : clears sessions, sets connection `RESTORED_UNVERIFIED`, disables writes, moves `RETRYABLE`/`BLOCKED` submissions to `NEEDS_REVIEW` / `RESTORE_RECONCILE`. No Drata calls.
 4. `docker compose run --rm bridge flask --app app cleanup`, then start.
 5. Re-enter or retest the Drata credential (Connection page, "Use stored credential"), verify the pinned account.
-6. Reconcile every `NEEDS_REVIEW` / `RESTORE_RECONCILE` and `UNKNOWN` row before any retry. A backup can predate a successful Drata write.
+6. Reconcile every `NEEDS_REVIEW` / `RESTORE_RECONCILE` and `UNKNOWN` row before any retry. A backup can predate a successful Drata write. A marker match verifies the vendor. No match leaves the row in review (absence is not proof): link a known vendor, cancel, or use "Confirm distinct new vendor" with a written reason (rescans before creating).
 
 ## Upgrade
 
@@ -85,3 +85,4 @@ Rollback: previous image only when schema-compatible; otherwise restore the matc
 - Egress: HTTPS to `public-api.drata.com` (or the verified regional endpoint set in `DRATA_BASE_URL`).
 - Containerized proxy: use a private Docker network, not loopback.
 - `TRUST_PROXY_HOPS` must equal the real proxy count; block direct client access to port 8000.
+- State-changing requests need `Origin` equal to `APP_BASE_URL`. `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on same-origin form posts; those are accepted only with `Sec-Fetch-Site: same-origin`. The proxy must pass `Origin` and `Sec-Fetch-Site` through unchanged.

@@ -1,4 +1,5 @@
 import copy
+import json
 import re
 import unicodedata
 from decimal import Decimal, InvalidOperation
@@ -60,7 +61,7 @@ _EMAIL_RE = re.compile(
 )
 _MONEY_RE = re.compile(r"^\d{1,9}(\.\d{1,2})?$")
 _NUMBER_RE = re.compile(r"^-?\d{1,10}(\.\d{1,6})?$")
-_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 
 def humanize(value: str) -> str:
@@ -129,31 +130,39 @@ def validate_form(schema: dict, custom_defs: dict | None = None, custom_enabled:
 
     seen_ids, seen_native, seen_custom = set(), set(), set()
     for fld in fields:
-        fid = fld.get("id")
-        if not isinstance(fid, str) or not FIELD_ID_RE.match(fid):
-            err(fid, "Field id must match [a-z][a-z0-9_]{0,63}.")
-            continue
-        if fid in seen_ids:
-            err(fid, "Duplicate field id.")
-        seen_ids.add(fid)
-        ftype = fld.get("type")
-        if ftype not in INPUT_TYPES:
-            err(fid, "Unsupported input type.")
-            continue
-        if not str(fld.get("label", "")).strip() or len(fld["label"]) > 191:
-            err(fid, "Label required, max 191 characters.")
-        if len(str(fld.get("helpText", ""))) > 500:
-            err(fid, "Help text max 500 characters.")
-        if not isinstance(fld.get("required"), bool):
-            err(fid, "required must be boolean.")
-        _check_options(fld, err)
-        _check_destination(fld, custom_defs, custom_enabled, seen_native, seen_custom, err)
+        try:
+            _check_field(fld, custom_defs, custom_enabled, seen_ids, seen_native, seen_custom, err)
+        except (TypeError, AttributeError, KeyError, ValueError):
+            fid = fld.get("id") if isinstance(fld, dict) and isinstance(fld.get("id"), str) else None
+            err(fid, "Malformed field definition.")
 
     if "name" not in seen_native:
         err(None, "A field must map to the native destination name.")
     if custom_defs is not None:
         _check_required_custom(fields, custom_defs, seen_custom, err)
     return errors
+
+
+def _check_field(fld, custom_defs, custom_enabled, seen_ids, seen_native, seen_custom, err):
+    fid = fld.get("id")
+    if not isinstance(fid, str) or not FIELD_ID_RE.fullmatch(fid):
+        err(fid, "Field id must match [a-z][a-z0-9_]{0,63}.")
+        return
+    if fid in seen_ids:
+        err(fid, "Duplicate field id.")
+    seen_ids.add(fid)
+    ftype = fld.get("type")
+    if ftype not in INPUT_TYPES:
+        err(fid, "Unsupported input type.")
+        return
+    if not str(fld.get("label", "")).strip() or len(fld["label"]) > 191:
+        err(fid, "Label required, max 191 characters.")
+    if len(str(fld.get("helpText", ""))) > 500:
+        err(fid, "Help text max 500 characters.")
+    if not isinstance(fld.get("required"), bool):
+        err(fid, "required must be boolean.")
+    _check_options(fld, err)
+    _check_destination(fld, custom_defs, custom_enabled, seen_native, seen_custom, err)
 
 
 def _check_options(fld, err):
@@ -274,7 +283,7 @@ def _url(value, limit, err):
     text = unicodedata.normalize("NFC", value).strip()
     if len(text) > limit:
         return err(f"Maximum {limit} characters.")
-    if not text or re.search(r"[\x00-\x20\x7f]", text):
+    if not text or re.search(r"[\x00-\x20\x7f-\x9f]", text):
         return err("URL must not contain spaces or control characters.")
     try:
         parts = urlsplit(text)
@@ -323,6 +332,10 @@ def validate_answers(schema: dict, answers) -> tuple[dict, dict]:
     clean, errors = {}, {}
     if not isinstance(answers, dict):
         return {}, {"_form": "answers must be an object."}
+    try:
+        json.dumps(answers, ensure_ascii=False).encode("utf-8")
+    except (UnicodeEncodeError, TypeError, ValueError, RecursionError):
+        return {}, {"_form": "answers contain unsupported characters."}
     known = {f["id"]: f for f in schema["fields"]}
     for unknown in set(answers) - set(known):
         errors["_unknown"] = f"Unknown field id: {str(unknown)[:64]}"

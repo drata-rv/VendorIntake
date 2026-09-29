@@ -29,10 +29,24 @@ def active(conn) -> dict:
             "definitions": json.loads(row["definitions_json"]) if row["definitions_json"] else None}
 
 
+def _typed(obj: dict, keys, kind) -> bool:
+    return all(obj.get(k) is None or (isinstance(obj[k], kind) and not isinstance(obj[k], bool)) for k in keys)
+
+
 def shape_ok(schema) -> bool:
-    return (isinstance(schema, dict) and isinstance(schema.get("fields"), list)
-            and len(schema["fields"]) <= mappings.MAX_FIELDS
-            and all(isinstance(f, dict) and isinstance(f.get("destination"), dict) for f in schema["fields"]))
+    if not (isinstance(schema, dict) and isinstance(schema.get("fields"), list)
+            and len(schema["fields"]) <= mappings.MAX_FIELDS and _typed(schema, ("currency",), str)):
+        return False
+    for f in schema["fields"]:
+        if not (isinstance(f, dict) and isinstance(f.get("destination"), dict)):
+            return False
+        dest = f["destination"]
+        opts = f.get("options")
+        if not (_typed(f, ("id", "type", "label", "helpText"), str) and _typed(f, ("maxLength",), int)
+                and _typed(dest, ("kind", "field", "customType", "reason"), str) and _typed(dest, ("customFieldId",), int)
+                and (opts is None or (isinstance(opts, list) and all(isinstance(o, dict) for o in opts)))):
+            return False
+    return True
 
 
 def save_version(conn, actor: str, schema) -> dict:

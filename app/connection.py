@@ -133,7 +133,7 @@ def _resolve_key(body: dict, row) -> str:
             raise ApiFail(409, "NO_STORED_CREDENTIAL", "No credential is stored.")
         return key
     key = body.get("apiKey")
-    if not isinstance(key, str) or not key.strip() or len(key) > 512:
+    if not isinstance(key, str) or not key.strip() or len(key) > 512 or not key.isascii() or not key.isprintable():
         raise ApiFail(422, "INVALID_INPUT", "API key required.", {"apiKey": "Required."})
     return key.strip()
 

@@ -90,6 +90,7 @@ def register_cli(app):
     def backup(output):
         if os.path.exists(output):
             raise click.ClickException("output exists")
+        os.close(os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
         src = _conn(app)
         dest = sqlite3.connect(output)
         try:
@@ -97,7 +98,6 @@ def register_cli(app):
         finally:
             dest.close()
             src.close()
-        os.chmod(output, 0o600)
         click.echo(f"backup written: {output}")
 
     @app.cli.command("restore-check")

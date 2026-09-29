@@ -3,7 +3,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from conftest import answers, attempts, envelope, only_submission, settings, sub
+from conftest import answers, attempts, envelope, make_actor, only_submission, settings, sub
 
 from app import db, drata, mappings, submissions
 from app.errors import ApiFail
@@ -292,3 +292,71 @@ def test_correction_links_to_original_only_for_own_rejected_submission(requester
     assert sub(conn, body_of(linked)["submissionId"])["origin_submission_id"] == original
     again = requester.post("/api/submissions", {**fixed, "originSubmissionId": original}, key=str(uuid.uuid4()))
     assert again.status_code in (201, 202) and sub(conn, original)["state"] == "NEEDS_CORRECTION"
+
+
+def test_retry_after_is_clamped_to_one_hour(requester, fake, conn):
+    assert drata.parse_retry_after("9" * 40) == (3600.0, False)
+    fake.create_mode, fake.create_reply = "reply", envelope(429, 4e9)
+    requester.submit(answers())
+    until = db.parse_iso(settings(conn)["rate_limit_until"])
+    assert (until - db.utcnow()).total_seconds() <= 3600
+
+
+def test_unencodable_answer_is_rejected_before_any_state(requester, fake, conn):
+    resp = requester.submit(answers(vendor_name="bad \ud800 name"))
+    assert resp.status_code == 422 and fake.calls == []
+    assert conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0] == 0
+
+
+def test_retry_with_blocked_connection_does_not_strand_the_row(admin, requester, fake, conn):
+    fake.create_mode = "not_sent"
+    sid = body_of(requester.submit(answers()))["submissionId"]
+    assert sub(conn, sid)["state"] == "RETRYABLE"
+    conn.execute("UPDATE settings SET connection_state = 'BLOCKED', writes_enabled = 0")
+    resp = admin.post(f"/api/admin/submissions/{sid}/retry", {"nonce": admin.nonce(sid, "RETRY")})
+    assert resp.status_code == 503 and sub(conn, sid)["state"] == "RETRYABLE"
+
+
+def test_stale_form_version_wins_over_answer_validation(requester, fake):
+    resp = requester.submit({"vendor_name": ""}, version=7)
+    assert resp.status_code == 409 and body_of(resp)["error"]["code"] == "FORM_CHANGED" and fake.calls == []
+
+
+@pytest.mark.parametrize("body", [
+    {"formVersion": 2 ** 70, "answers": {}},
+    {"formVersion": 1, "answers": {}, "originSubmissionId": ["x"]},
+    {"formVersion": "1", "answers": {}},
+])
+def test_malformed_submission_bodies_never_500(requester, body):
+    assert requester.post("/api/submissions", body, key=str(uuid.uuid4())).status_code in (400, 422)
+
+
+def test_linked_existing_hides_the_other_vendor_from_the_requester(admin, requester, fake, conn):
+    target = fake.add_vendor(name="Zorblax Industries", url=None, status=None)
+    sid = body_of(requester.submit(answers()))["submissionId"]
+    resolve = admin.post(f"/api/admin/submissions/{sid}/resolve", {
+        "decision": "LINK_EXISTING", "targetDrataId": target, "reason": "same entity",
+        "nonce": admin.nonce(sid, "LINK_EXISTING", targetDrataId=target)})
+    assert resolve.status_code == 200 and body_of(resolve)["drataId"] == target
+    seen = requester.get(f"/api/submissions/{sid}").get_json()
+    assert seen["drataId"] is None and seen["link"] is None and "Linked existing vendor" in seen["message"]
+    assert fake.post_count == 0
+
+
+def test_restored_submission_needs_reconcile_then_explicit_confirmation(app, requester, fake, conn):
+    fake.create_mode = "not_sent"
+    sid = body_of(requester.submit(answers()))["submissionId"]
+    attempted = fake.post_count
+    assert submissions.restore_flag(conn) == 1
+    admin = make_actor(app, conn, "restored-admin@example.com", "ADMIN")
+    assert (sub(conn, sid)["state"], sub(conn, sid)["state_reason"]) == ("NEEDS_REVIEW", "RESTORE_RECONCILE")
+    early = admin.post(f"/api/admin/submissions/{sid}/resolve", {
+        "decision": "CONFIRM_NEW", "reason": "confirmed distinct", "nonce": admin.nonce(sid, "CONFIRM_NEW")})
+    assert early.status_code == 409
+    conn.execute("UPDATE settings SET connection_state = 'ACTIVE', writes_enabled = 1")
+    assert body_of(admin.reconcile(sid))["reconcile"] == "NO_MARKER_MATCH"
+    assert sub(conn, sid)["state"] == "NEEDS_REVIEW" and fake.post_count == attempted
+    fake.create_mode = "ok"
+    done = admin.post(f"/api/admin/submissions/{sid}/resolve", {
+        "decision": "CONFIRM_NEW", "reason": "confirmed distinct", "nonce": admin.nonce(sid, "CONFIRM_NEW")})
+    assert done.status_code == 200 and sub(conn, sid)["state"] == "CREATED" and fake.post_count == attempted + 1

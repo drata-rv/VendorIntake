@@ -74,7 +74,7 @@ def login_post():
         return resp
     resp = redirect(url_for("routes.index"))
     auth.start_session(user["id"], resp)
-    resp.delete_cookie(auth.PRELOGIN_COOKIE, path="/")
+    resp.delete_cookie(auth.PRELOGIN_COOKIE, path="/", secure=True, httponly=True, samesite="Strict")
     return resp
 
 
@@ -86,7 +86,7 @@ def logout():
             conn.execute("DELETE FROM sessions WHERE token_hash = ?", (g.session["token_hash"],))
             audit(conn, uid(), "LOGOUT", uid())
     resp = redirect(url_for("routes.login_get"))
-    resp.delete_cookie(auth.SESSION_COOKIE, path="/")
+    resp.delete_cookie(auth.SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="Lax")
     return resp
 
 
@@ -253,7 +253,7 @@ def form_preview():
 @auth.admin_required
 def form_publish():
     version = json_body().get("version")
-    if not isinstance(version, int) or isinstance(version, bool):
+    if not isinstance(version, int) or isinstance(version, bool) or not 1 <= version <= 2**31 - 1:
         raise ApiFail(422, "INVALID_INPUT", "version required.")
     return out(forms.publish(get_db(), uid(), version))
 
@@ -275,7 +275,7 @@ def submission_page(sid):
 def action_nonce(sid):
     body = json_body()
     action = body.get("action")
-    if action not in NONCE_ACTIONS:
+    if not isinstance(action, str) or action not in NONCE_ACTIONS:
         raise ApiFail(422, "INVALID_INPUT", "Unsupported action.")
     extra = body.get("targetDrataId") if action == "LINK_EXISTING" else None
     return out(submissions.issue_nonce(get_db(), sid, action, extra))
