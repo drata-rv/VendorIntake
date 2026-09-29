@@ -1,5 +1,7 @@
 :root {
     --focus-ring: var(--border-primary-focus);
+    /* Cosmos APP_NAV_COLLAPSED_WIDTH (@ui/layout-constants). */
+    --app-nav-collapsed-width: 52px;
 }
 
 /* The dark focus token is under 3:1 on dark surfaces; the hover border token clears it. */
@@ -156,6 +158,24 @@ pre,
     line-height: var(--line-height-300);
     font-weight: var(--font-weight-semibold);
     text-decoration: none;
+}
+
+.app-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--app-nav-collapsed-width);
+    block-size: var(--dimension-10x);
+    border-radius: var(--border-radius-2x);
+    color: var(--icon-menu-initial);
+}
+
+.app-logo:hover {
+    background: var(--background-menu-hover);
+}
+
+.app-logo path {
+    fill: var(--icon-menu-initial);
 }
 
 .app-header-tenant {

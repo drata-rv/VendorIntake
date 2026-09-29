@@ -13,8 +13,12 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
+    {% set home = url_for('routes.index') if current_user else url_for('routes.login_get') %}
+    <a class="app-logo" href="{{ home }}" aria-label="Vendor intake bridge home">
+      <svg fill="none" height="20" viewBox="0 0 27 20" width="27" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g><path d="m6.8554 19.9979h8.0966c6.6279 0 11.4116-3.9251 11.4116-9.9969 0-6.07173-4.7847-10.001-11.4116-10.001h-8.0966v.04408c.04329-.04408 5.1592 4.80882 5.1592 4.80882h2.7079c3.6915 0 6.5776 1.48436 6.5776 5.1492 0 3.6647-2.8861 5.1491-6.5776 5.1491h-2.7109l-5.15721 4.8488z"></path><path d="m6.84535 5.30841c1.26297 2.08503 3.21255 3.63809 5.49565 4.38013l1.3497.43796-1.3497.4379c-2.2831.741-4.23268 2.2951-5.49565 4.3801-1.26297-2.085-3.21252-3.6381-5.49566-4.3801l-1.34969-.4379 1.34969-.43796c2.28314-.74099 4.23269-2.2951 5.49566-4.38013z"></path></g></svg>
+    </a>
     <div class="app-header-brand">
-      <a class="brand-name" href="{{ url_for('routes.index') if current_user else url_for('routes.login_get') }}">Vendor intake bridge</a>
+      <a class="brand-name" href="{{ home }}">Vendor intake bridge</a>
       <span class="tag" data-tone="primary">Customer-managed</span>
     </div>
     {% if tenant %}
