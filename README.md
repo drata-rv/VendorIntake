@@ -4,11 +4,11 @@ Customer-hosted Flask app. Requester submits vendor-intake answers; server maps 
 
 ## Scope
 
-- One Drata tenant, one process, one SQLite file, one enabled form.
-- Local accounts: `ADMIN`, `REQUESTER`. No SSO, SMTP, ServiceNow, uploads, approvals, promotion, deletion.
-- Synchronous writes. No queue, worker, or automatic write retry.
-- Custom fields: `TEXT`, `LONG_TEXT`, `URL`, `NUMBER`. `OPTIONS`, `OPTIONS_NUMERIC`, `CURRENCY` blocked.
-- Single host, downtime on restart. Not HA.
+- Tenant: one Drata tenant, pinned at first connection. Process: one Gunicorn worker, four threads. Storage: one SQLite file. Form: one enabled version.
+- Accounts: local `ADMIN` and `REQUESTER`.
+- Writes: synchronous; administrator-initiated retry only.
+- Custom fields: `TEXT`, `LONG_TEXT`, `URL`, `NUMBER`. `OPTIONS`, `OPTIONS_NUMERIC`, `CURRENCY` raise a setup blocker.
+- Deployment: single host; restart interrupts in-flight requests.
 
 ## Layout
 
@@ -81,7 +81,7 @@ Create key `Vendor Intake Bridge` with custom scopes. Create-only: Company Setti
 
 ## Limits
 
-- Duplicate detection is advisory (name and hostname equality). Other systems can create vendors in the scan/write gap.
-- Update GET-then-PUT is not atomic. Enable updates only when the bridge owns the selected fields during execution.
-- Deleting a bridge record does not delete the Drata record.
-- Docker image and compose file are not built or run in the authoring environment; see `docs/SMOKE_TEST.md` for what was exercised.
+- Duplicate detection compares name and hostname equality. Another system can create a vendor between the scan and the write.
+- Update runs GET, then PUT. The pair is not atomic; enable updates when the bridge owns the selected fields during execution.
+- Deleting a bridge record leaves the Drata record in place.
+- Container build and `docker compose` run: untested in the authoring environment. Exercised paths are listed in `docs/SMOKE_TEST.md`.
