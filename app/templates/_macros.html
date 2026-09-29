@@ -1,0 +1,15 @@
+{% macro pill(state) -%}
+<span class="pill" data-state="{{ state }}">{{ state|replace('_', ' ')|capitalize }}</span>
+{%- endmacro %}
+
+{% macro when(ts) -%}
+{% if ts %}<time datetime="{{ ts }}" data-local>{{ ts[:16]|replace('T', ' ') }} UTC</time>{% else %}<span class="muted">Not set</span>{% endif %}
+{%- endmacro %}
+
+{% macro yes_no(value) -%}
+{{ 'Yes' if value else 'No' }}
+{%- endmacro %}
+
+{% macro plural(count, one, many) -%}
+{{ count }} {{ one if count == 1 else many }}
+{%- endmacro %}

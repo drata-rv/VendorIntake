@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "_macros.html" import when %}
+{% set state_tones = {'ACTIVE': 'success', 'BLOCKED': 'critical', 'RESTORED_UNVERIFIED': 'warning', 'DISCONNECTED': 'neutral'} %}
+{% block title %}Drata Connection{% endblock %}
+{% block heading %}Drata Connection{% endblock %}
+
+{% macro flag_item(key, label, on, yes_text, no_text) %}
+<li data-flag-key="{{ key }}" data-flag="{{ 'true' if on else 'false' }}">
+  <span class="pill">{{ label }}</span>
+  <span class="muted" data-when="true"{% if not on %} hidden{% endif %}>{{ yes_text }}</span>
+  <span class="muted" data-when="false"{% if on %} hidden{% endif %}>{{ no_text }}</span>
+</li>
+{% endmacro %}
+
+{% block content %}
+<div class="stack" data-connection-page>
+  <script type="application/json" id="connection-data">{{ conn|tojson }}</script>
+  <div id="page-feedback"></div>
+
+  <section class="card" aria-labelledby="tenant-title">
+    <h2 id="tenant-title">Pinned tenant</h2>
+    <dl class="dl-grid">
+      <dt>Tenant name</dt>
+      <dd>{{ conn.account.name or 'Not connected yet' }}</dd>
+      <dt>Tenant domain</dt>
+      <dd>{{ conn.account.domain or 'Not connected yet' }}</dd>
+      <dt>Account ID</dt>
+      <dd><span class="mono">{{ conn.account.id or 'Not connected yet' }}</span></dd>
+      <dt>Connection state</dt>
+      <dd><span class="pill" data-tone="{{ state_tones.get(conn.connectionState, 'neutral') }}">{{ conn.connectionState|replace('_', ' ')|capitalize }}</span></dd>
+      <dt>Credential version</dt>
+      <dd>{{ conn.credentialVersion }}</dd>
+      <dt>Connected</dt>
+      <dd>{{ when(conn.connectedAt) }}</dd>
+      <dt>Drata API base URL</dt>
+      <dd><span class="mono">{{ drata_base_url }}</span> <span class="muted small">Set by deployment.</span></dd>
+      <dt>Approved link hosts</dt>
+      <dd>{% if link_hosts %}{% for host in link_hosts %}<span class="tag mono">{{ host }}</span> {% endfor %}{% else %}<span class="muted">None configured. Results show the Drata ID without a link.</span>{% endif %}</dd>
+    </dl>
+
+    <h3>Verification status</h3>
+    <ul class="status-list">
+      {{ flag_item('readVerified', 'Read verified', conn.readVerified, 'Company and vendor list calls succeeded.', 'Reads are not verified.') }}
+      {{ flag_item('writeScopeAttested', 'Write scope attested', conn.writeScopeAttested, 'An administrator attested the key can create vendors. This is not proof.', 'No write scope attestation recorded.') }}
+      {{ flag_item('writeObserved', 'Write observed successfully', conn.writeObserved, 'A vendor create succeeded with this credential version.', 'No successful write yet. The bridge never sends a test write.') }}
+    </ul>
+  </section>
+
+  {% if conn.configured and conn.connectionState in ('BLOCKED', 'RESTORED_UNVERIFIED') %}
+  <section class="card" aria-labelledby="retest-title">
+    <h2 id="retest-title">Retest stored credential</h2>
+    <div class="banner" data-tone="warning">
+      <p class="banner-title">{{ 'Writes are blocked' if conn.connectionState == 'BLOCKED' else 'Restored from a backup and not yet verified' }}</p>
+      <p>{% if conn.connectionState == 'BLOCKED' %}Drata rejected a request made with this credential. Fix the key scopes in Drata if needed, then retest. Submissions stay blocked until the connection is active.{% else %}Writes are off until the stored credential is tested again against the pinned account. No key entry is needed.{% endif %}</p>
+    </div>
+    <form id="retest-form" class="stack" novalidate>
+      <fieldset class="field" aria-describedby="retest-error">
+        <legend class="field-label">Attest again</legend>
+        <label class="choice"><input type="checkbox" name="attestCreate"> I attest this key has the Vendors: Create Vendor scope in Drata.</label>
+        {% if conn.updatesEnabled %}
+        <label class="choice"><input type="checkbox" name="attestUpdate"> I attest this key has the Vendors: Update Vendor scope in Drata.</label>
+        {% endif %}
+        <p class="field-error" id="retest-error" hidden></p>
+      </fieldset>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="retest-button"><span class="spinner" aria-hidden="true" hidden></span><span>Retest stored credential</span></button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="card" aria-labelledby="connect-title">
+    <h2 id="connect-title">{{ 'Replace credential or change settings' if conn.configured else 'Connect to Drata' }}</h2>
+    <form id="connect-form" class="stack" autocomplete="off" novalidate>
+      {% if conn.configured %}
+      <label class="choice"><input type="checkbox" name="useStored" id="use-stored"> Use the stored credential, no new key</label>
+      {% endif %}
+      <div class="field">
+        <label class="field-label" for="api-key">Drata API key</label>
+        <p class="field-help" id="api-key-help">Use a dedicated key with only the scopes below. It is sent once, stored encrypted, and cleared from this page after each request.</p>
+        <input class="input" id="api-key" name="apiKey" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="api-key-help api-key-error">
+        <p class="field-error" id="api-key-error" hidden></p>
+      </div>
+      <label class="choice"><input type="checkbox" name="customFieldsEnabled"{% if conn.customFieldsEnabled %} checked{% endif %}> Enable custom fields. Needs Custom Fields and Formulas in your Drata plan and the definitions read scope.</label>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" id="test-button"><span class="spinner" aria-hidden="true" hidden></span><span>Test connection</span></button>
+      </div>
+
+      <div class="subcard" id="test-result" tabindex="-1" hidden>
+        <h3>Test results</h3>
+        <ol class="steps" id="test-steps"></ol>
+      </div>
+
+      <fieldset class="field" id="attest-fieldset" aria-describedby="attest-help">
+        <legend class="field-label">Confirm and attest</legend>
+        <p class="field-help" id="attest-help">Attestations are recorded but are not verified. Test the connection first so the account can be confirmed.</p>
+        <label class="choice"><input type="checkbox" name="confirmAccount" id="confirm-account"> <span id="confirm-account-label">Confirm the Drata account shown after testing.</span></label>
+        <label class="choice"><input type="checkbox" name="attestCreate"{% if conn.writeScopeAttested %} checked{% endif %}> I attest this key has the Vendors: Create Vendor scope in Drata.</label>
+        <label class="choice"><input type="checkbox" name="updatesEnabled"{% if conn.updatesEnabled %} checked{% endif %}> Allow administrators to update existing prospective vendors.</label>
+        <label class="choice"><input type="checkbox" name="attestUpdate"{% if conn.updateScopeAttested %} checked{% endif %}> I attest this key has the Vendors: Update Vendor scope in Drata.</label>
+        <p class="field-error" id="attest-error" hidden></p>
+      </fieldset>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="save-button"><span class="spinner" aria-hidden="true" hidden></span><span>Save connection</span></button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="retention-title">
+    <h2 id="retention-title">Retention</h2>
+    <form id="retention-form" class="stack" novalidate>
+      <div class="form-grid">
+        <div class="field">
+          <label class="field-label" for="ret-terminal">Completed submissions, days</label>
+          <p class="field-help" id="ret-terminal-help">Answers and payloads are purged this long after completion or cancellation. 1 to 365.</p>
+          <input class="input" id="ret-terminal" name="terminalDays" type="number" inputmode="numeric" min="1" max="365" value="{{ conn.retention.terminalDays }}" aria-describedby="ret-terminal-help ret-terminal-error">
+          <p class="field-error" id="ret-terminal-error" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="ret-unresolved">Unresolved submissions, days</label>
+          <p class="field-help" id="ret-unresolved-help">Unresolved requests are cancelled and purged after this. Warning starts 30 days earlier. 7 to 365.</p>
+          <input class="input" id="ret-unresolved" name="unresolvedDays" type="number" inputmode="numeric" min="7" max="365" value="{{ conn.retention.unresolvedDays }}" aria-describedby="ret-unresolved-help ret-unresolved-error">
+          <p class="field-error" id="ret-unresolved-error" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="ret-ledger">Ledger and audit, days</label>
+          <p class="field-help" id="ret-ledger-help">Minimal submission records and audit events are kept this long. 30 to 3650.</p>
+          <input class="input" id="ret-ledger" name="ledgerDays" type="number" inputmode="numeric" min="30" max="3650" value="{{ conn.retention.ledgerDays }}" aria-describedby="ret-ledger-help ret-ledger-error">
+          <p class="field-error" id="ret-ledger-error" hidden></p>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-secondary" id="retention-button"><span class="spinner" aria-hidden="true" hidden></span><span>Save retention</span></button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="disconnect-title"{% if not conn.configured %} hidden{% endif %}>
+    <h2 id="disconnect-title">Disconnect</h2>
+    <div class="banner" data-tone="warning">
+      <p class="banner-title">Revoke the key in Drata as well</p>
+      <p>Disconnect turns off writes, closes intake, and removes the stored key from this application. It does not revoke the key in Drata. Revoke it in Drata Settings, under API keys.</p>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-danger" id="disconnect-button">Disconnect</button>
+    </div>
+  </section>
+</div>
+{% endblock %}

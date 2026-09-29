@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Vendor Intake{% endblock %}
+{% block heading %}Vendor Intake{% endblock %}
+
+{% macro field_block(f, currency, values) %}
+{% set v = values.get(f.id) %}
+{% set fid = 'f-' ~ f.id %}
+{% set retained = f.destination.kind == 'retained_only' %}
+{% set limited = f.type in ('text', 'textarea') and f.maxLength %}
+{% set has_help = f.helpText or limited %}
+{% set described = (fid ~ '-help ' if has_help else '') ~ (fid ~ '-note ' if retained else '') ~ (fid ~ '-cur ' if f.type == 'money' else '') ~ fid ~ '-error' %}
+{% set req = 'true' if f.required else 'false' %}
+{% if f.type in ('boolean', 'multiselect') %}
+<fieldset class="field" data-field-id="{{ f.id }}" data-type="{{ f.type }}" id="{{ fid }}" aria-describedby="{{ described }}"{% if f.type == 'boolean' %} role="radiogroup" aria-required="{{ req }}"{% endif %}>
+  <legend class="field-label">{{ f.label }}{% if not f.required %} <span class="optional">(optional)</span>{% endif %}</legend>
+{% else %}
+<div class="field" data-field-id="{{ f.id }}" data-type="{{ f.type }}">
+  <label class="field-label" for="{{ fid }}">{{ f.label }}{% if not f.required %} <span class="optional">(optional)</span>{% endif %}</label>
+{% endif %}
+  {% if has_help %}<p class="field-help" id="{{ fid }}-help">{{ f.helpText }}{% if limited %} Maximum {{ f.maxLength }} characters.{% endif %}</p>{% endif %}
+  {% if f.type == 'text' %}
+  <input class="input" id="{{ fid }}" name="{{ fid }}" type="text" autocomplete="off"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
+  {% elif f.type == 'textarea' %}
+  <textarea class="textarea" id="{{ fid }}" name="{{ fid }}" rows="5" aria-required="{{ req }}" aria-describedby="{{ described }}">{{ v if v is string else '' }}</textarea>
+  {% elif f.type == 'url' %}
+  <input class="input" id="{{ fid }}" name="{{ fid }}" type="url" inputmode="url" autocomplete="off" spellcheck="false"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
+  {% elif f.type == 'email_list' %}
+  <input class="input" id="{{ fid }}" name="{{ fid }}" type="text" inputmode="email" autocomplete="off" spellcheck="false"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
+  {% elif f.type == 'money' %}
+  <div class="input-group">
+    <input class="input" id="{{ fid }}" name="{{ fid }}" type="text" inputmode="decimal" autocomplete="off"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
+    <span class="input-addon" id="{{ fid }}-cur"><span class="visually-hidden">Currency </span>{{ currency }}</span>
+  </div>
+  {% elif f.type == 'select' %}
+  <select class="select" id="{{ fid }}" name="{{ fid }}" aria-required="{{ req }}" aria-describedby="{{ described }}">
+    <option value="">Select an option</option>
+    {% for o in f.options %}<option value="{{ o.value }}"{% if v == o.value %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+  </select>
+  {% elif f.type == 'boolean' %}
+  <div class="choice-row">
+    <label class="choice"><input type="radio" name="{{ fid }}" value="true" id="{{ fid }}-yes"{% if v is sameas true %} checked{% endif %}> Yes</label>
+    <label class="choice"><input type="radio" name="{{ fid }}" value="false" id="{{ fid }}-no"{% if v is sameas false %} checked{% endif %}> No</label>
+  </div>
+  {% if not f.required %}<div><button type="button" class="btn btn-tertiary btn-sm" data-clear-choice>Clear answer</button></div>{% endif %}
+  {% elif f.type == 'multiselect' %}
+  <div class="choice-row">
+    {% for o in f.options %}
+    <label class="choice"><input type="checkbox" name="{{ fid }}" value="{{ o.value }}"{% if v is iterable and v is not string and o.value in v %} checked{% endif %}> {{ o.label }}</label>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if retained %}<p class="field-note" id="{{ fid }}-note">Kept with this request; not sent to Drata.</p>{% endif %}
+  <p class="field-error" id="{{ fid }}-error" hidden></p>
+{% if f.type in ('boolean', 'multiselect') %}
+</fieldset>
+{% else %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+{% if not form %}
+<div class="banner" data-tone="warning">
+  <p class="banner-title">Intake is not open</p>
+  <p>No form is accepting submissions right now.
+    {% if current_user.role == 'ADMIN' %}Publish a form in <a href="{{ url_for('routes.form_page') }}">Form</a> and check the <a href="{{ url_for('routes.connection_page') }}">Connection</a>.{% else %}Ask an administrator to open intake.{% endif %}</p>
+</div>
+{% else %}
+{% set values = prefill.answers if prefill and prefill.answers else {} %}
+{% if prefill %}
+<div class="banner" data-tone="primary" role="status" id="prefill-banner">
+  <p class="banner-title">Correcting a submission Drata rejected</p>
+  <p>Your earlier answers are filled in. Fix what Drata rejected and submit again. This creates a new submission linked to the original.</p>
+</div>
+{% endif %}
+<p class="page-lede">Enter what you know about the vendor. Submitting saves your request and creates a prospective vendor in Drata. Fields marked optional can stay blank.</p>
+<div class="stack">
+  <div class="banner" data-tone="critical" role="alert" tabindex="-1" id="error-summary" aria-labelledby="error-summary-title" hidden>
+    <p class="banner-title" id="error-summary-title"></p>
+    <p data-summary-message></p>
+    <ul data-summary-list></ul>
+    <p data-summary-extra></p>
+  </div>
+  <form class="card" id="intake-form" data-intake-form data-form-version="{{ form_version }}"{% if prefill %} data-origin-submission-id="{{ prefill.originSubmissionId }}"{% endif %} novalidate>
+    {% for f in form.fields %}
+    {{ field_block(f, form.currency, values) }}
+    {% endfor %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="submit-button"><span class="spinner" aria-hidden="true" hidden></span><span>Create prospective vendor</span></button>
+      <span class="muted small" id="submit-status" role="status"></span>
+    </div>
+  </form>
+  <p class="muted small">If the outcome is unclear after you submit, check <a href="{{ url_for('routes.history_page') }}">My submissions</a> before trying again.</p>
+</div>
+{% endif %}
+{% endblock %}

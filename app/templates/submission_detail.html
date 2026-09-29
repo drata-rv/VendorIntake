@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pill, when, yes_no, plural %}
+{% set reason_help = {'NAME': 'Same name after case and whitespace normalization.', 'HOST': 'Same website hostname.', 'LOCAL_UNRESOLVED': 'Another unresolved submission in this app has the same name or hostname.', 'MARKER': 'Drata notes contain this submission marker.'} %}
+{% set s = d.state %}
+{% set can_retry = s in ('RETRYABLE', 'BLOCKED') %}
+{% set can_reconcile = s in ('UNKNOWN', 'NEEDS_REVIEW', 'RETRYABLE', 'BLOCKED') %}
+{% set dup_review = s == 'NEEDS_REVIEW' and (d.reason in ('DUPLICATE_SUSPECTED', 'LOCAL_UNRESOLVED_MATCH') or (d.reason == 'RESTORE_RECONCILE' and d.lastError == 'NO_MARKER_MATCH')) %}
+{% set can_recreate = s == 'UNKNOWN' %}
+{% set can_cancel = s in ('UNKNOWN', 'NEEDS_REVIEW', 'RETRYABLE', 'BLOCKED', 'NEEDS_CORRECTION') %}
+{% set any_action = can_retry or can_reconcile or dup_review or can_recreate or can_cancel or d.updateEligible %}
+{% block title %}Submission Detail{% endblock %}
+{% block page_class %}page page-full{% endblock %}
+{% block heading %}Submission Detail{% endblock %}
+
+{% macro show_value(v) -%}
+{%- if v is none -%}<span class="muted">Not answered</span>
+{%- elif v is sameas true -%}Yes
+{%- elif v is sameas false -%}No
+{%- elif v is iterable and v is not string -%}{{ v|join(', ') }}
+{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+
+{% block actions %}
+<div class="page-header-actions">
+  <a class="btn btn-secondary" href="{{ url_for('routes.history_page') }}">All submissions</a>
+  <a class="btn btn-secondary" href="{{ url_for('routes.result_page', sid=d.id) }}">Requester view</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="stack" data-detail data-submission-id="{{ d.id }}">
+  <script type="application/json" id="payload-data">{{ d.payload|tojson }}</script>
+
+  <section class="card" aria-labelledby="summary-title">
+    <h2 id="summary-title">Summary</h2>
+    <div class="banner" data-tone="{{ {'CREATED': 'success', 'UPDATED': 'success', 'IN_PROGRESS': 'primary', 'NEEDS_CORRECTION': 'critical', 'BLOCKED': 'critical', 'CANCELLED': 'neutral'}.get(s, 'warning') }}">
+      <p>{{ d.message }}</p>
+    </div>
+    <dl class="dl-grid">
+      <dt>Status</dt>
+      <dd>{{ pill(s) }}{% if d.reason %} <span class="tag mono">{{ d.reason }}</span>{% endif %}</dd>
+      <dt>Local reference</dt>
+      <dd><span class="mono">{{ d.id }}</span></dd>
+      <dt>Vendor</dt>
+      <dd>{% if d.vendorName %}{{ d.vendorName }}{% else %}<span class="muted">Not available</span>{% endif %}</dd>
+      <dt>Requester</dt>
+      <dd>{{ d.requesterEmail or 'Unknown' }}</dd>
+      <dt>Operation</dt>
+      <dd>{{ d.operation }}</dd>
+      <dt>Form version</dt>
+      <dd>{{ d.formVersion }}</dd>
+      <dt>Drata ID</dt>
+      <dd>{% if d.drataId %}<span class="mono">{{ d.drataId }}</span>{% else %}<span class="muted">Not assigned</span>{% endif %}
+        {% if d.link %} <a href="{{ d.link }}" target="_blank" rel="noopener noreferrer">Open in Drata</a>{% endif %}</dd>
+      {% if d.targetDrataId %}
+      <dt>Update target</dt>
+      <dd><span class="mono">{{ d.targetDrataId }}</span></dd>
+      {% endif %}
+      <dt>Attempts</dt>
+      <dd>{{ d.attemptCount }}</dd>
+      {% if d.lastError %}
+      <dt>Last error code</dt>
+      <dd><span class="mono">{{ d.lastError }}</span></dd>
+      {% endif %}
+      {% if d.duplicateReason %}
+      <dt>Administrator reason</dt>
+      <dd>{{ d.duplicateReason }}</dd>
+      {% endif %}
+      {% if d.originSubmissionId %}
+      <dt>Original submission</dt>
+      <dd><a class="mono" href="{{ url_for('routes.submission_page', sid=d.originSubmissionId) }}">{{ d.originSubmissionId }}</a></dd>
+      {% endif %}
+      <dt>Submitted</dt>
+      <dd>{{ when(d.createdAt) }}</dd>
+      <dt>Last updated</dt>
+      <dd>{{ when(d.updatedAt) }}</dd>
+      {% if d.retentionWarning %}
+      <dt>Retention</dt>
+      <dd><span class="pill" data-tone="warning">Expires in {{ plural(d.expiresInDays, 'day', 'days') }}</span></dd>
+      {% endif %}
+      {% if d.payloadPurged %}
+      <dt>Data</dt>
+      <dd>Answers and payload were purged under the retention policy.</dd>
+      {% endif %}
+    </dl>
+  </section>
+
+  {% if d.candidates %}
+  <section class="card" aria-labelledby="candidates-title">
+    <h2 id="candidates-title">Candidate matches</h2>
+    <p class="muted">Name and hostname matches are warning signals, not proof of a duplicate.</p>
+    <div class="table-wrap">
+      <table class="table table-stack" id="candidates-table">
+        <thead>
+          <tr><th scope="col">Drata ID</th><th scope="col">Name</th><th scope="col">Website</th><th scope="col">Drata status</th><th scope="col">Match reasons</th><th scope="col">Use</th></tr>
+        </thead>
+        <tbody>
+          {% for c in d.candidates %}
+          {% set is_local = c.id is string and c.id.startswith('L:') %}
+          <tr>
+            <td data-label="Drata ID">{% if is_local %}<a href="{{ url_for('routes.submission_page', sid=c.id[2:]) }}">Local submission</a>{% else %}<span class="mono">{{ c.id }}</span>{% endif %}</td>
+            <td data-label="Name">{{ c.name or '' }}</td>
+            <td data-label="Website">{{ c.url or '' }}</td>
+            <td data-label="Drata status">{{ c.status or '' }}</td>
+            <td data-label="Match reasons">
+              {% for r in c.reasons %}
+              <span class="tag mono">{{ r }}</span>
+              {% endfor %}
+              {% for r in c.reasons %}{% if reason_help.get(r) %}<span class="sub">{{ reason_help[r] }}</span>{% endif %}{% endfor %}
+            </td>
+            <td data-label="Use">
+              {% if not is_local %}<button type="button" class="btn btn-tertiary btn-sm" data-use-candidate="{{ c.id }}">Use ID {{ c.id }}</button>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card" aria-labelledby="actions-title">
+    <h2 id="actions-title">Actions</h2>
+    <div class="banner" data-tone="success" role="status" tabindex="-1" id="action-done" hidden>
+      <p class="banner-title" id="action-done-title"></p>
+      <p id="action-done-message"></p>
+      <p id="action-done-links"></p>
+    </div>
+    {% if not any_action %}
+    <p class="muted">No actions are available for this state.</p>
+    {% else %}
+    <div class="callout-group">
+      {% if can_retry %}
+      <form class="subcard stack-sm" data-action="retry" novalidate>
+        <h3>Retry</h3>
+        <p>Runs the preflight checks again and sends one create request. Use it when nothing was sent, or after fixing the cause of a block.</p>
+        <div class="form-actions"><button type="submit" class="btn btn-primary"><span class="spinner" aria-hidden="true" hidden></span><span>Retry</span></button></div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </form>
+      {% endif %}
+
+      {% if can_reconcile %}
+      <form class="subcard stack-sm" data-action="reconcile" novalidate>
+        <h3>Reconcile</h3>
+        <p>Reads Drata with list and get requests only, to find a vendor carrying this submission marker. Nothing is written to Drata.</p>
+        <div class="form-actions"><button type="submit" class="btn btn-secondary"><span class="spinner" aria-hidden="true" hidden></span><span>Reconcile</span></button></div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </form>
+
+      <form class="subcard stack-sm" data-action="link" novalidate>
+        <h3>Link existing vendor</h3>
+        <p>Closes this submission as linked to a vendor that already exists in Drata. Nothing is created or changed in Drata.</p>
+        <div class="field">
+          <label class="field-label" for="link-target">Drata vendor ID</label>
+          <input class="input" id="link-target" name="targetDrataId" type="number" inputmode="numeric" min="1" step="1" aria-describedby="link-target-error">
+          <p class="field-error" id="link-target-error" data-error-for="targetDrataId" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="link-reason">Reason</label>
+          <textarea class="textarea textarea-short" id="link-reason" name="reason" rows="3" maxlength="500" aria-describedby="link-reason-error"></textarea>
+          <p class="field-error" id="link-reason-error" data-error-for="reason" hidden></p>
+        </div>
+        <div class="form-actions"><button type="submit" class="btn btn-secondary"><span class="spinner" aria-hidden="true" hidden></span><span>Link existing vendor</span></button></div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </form>
+      {% endif %}
+
+      {% if dup_review %}
+      <form class="subcard stack-sm" data-action="confirm-new" novalidate>
+        <h3>Confirm distinct new vendor</h3>
+        <p>Records that this is not a duplicate and creates the vendor. Drata is scanned again first, and you are asked to review again if new matches appear.</p>
+        <div class="field">
+          <label class="field-label" for="confirm-reason">Written reason</label>
+          <p class="field-help" id="confirm-reason-help">At least 10 characters.</p>
+          <textarea class="textarea textarea-short" id="confirm-reason" name="reason" rows="3" maxlength="500" aria-describedby="confirm-reason-help confirm-reason-error"></textarea>
+          <p class="field-error" id="confirm-reason-error" data-error-for="reason" hidden></p>
+        </div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary"><span class="spinner" aria-hidden="true" hidden></span><span>Confirm distinct new vendor</span></button></div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </form>
+      {% endif %}
+
+      {% if d.updateEligible %}
+      <div class="subcard stack-sm" data-update-section>
+        <h3>Apply to existing vendor</h3>
+        <p>Sends only the selected fields to one prospective vendor you choose. Preview the change, then confirm within five minutes.</p>
+        <form class="stack-sm" data-action="update-preview" novalidate>
+          <div class="field">
+            <label class="field-label" for="update-target">Drata vendor ID</label>
+            <input class="input" id="update-target" name="targetDrataId" type="number" inputmode="numeric" min="1" step="1" aria-describedby="update-target-error">
+            <p class="field-error" id="update-target-error" data-error-for="targetDrataId" hidden></p>
+          </div>
+          <fieldset class="field" aria-describedby="update-fields-error">
+            <legend class="field-label">Fields to update</legend>
+            {% set ns = namespace(count=0) %}
+            {% for a in (d.answers or []) if a.destination.kind == 'native' and a.destination.field != 'notes' and a.value is not none %}
+            {% set ns.count = ns.count + 1 %}
+            <label class="choice"><input type="checkbox" name="fields" value="{{ a.destination.field }}" data-label="{{ a.label }}"> <span>{{ a.label }}: <span class="muted">{{ show_value(a.value) }}</span></span></label>
+            {% endfor %}
+            {% if ns.count == 0 %}<p class="muted">No answered fields can be applied to an existing vendor.</p>{% endif %}
+            <p class="field-error" id="update-fields-error" data-error-for="fields" hidden></p>
+          </fieldset>
+          <div class="form-actions"><button type="submit" class="btn btn-secondary"><span class="spinner" aria-hidden="true" hidden></span><span>Preview update</span></button></div>
+        </form>
+        <div class="stack-sm" data-update-diff tabindex="-1" hidden>
+          <h3>Proposed change to <span data-update-target-name></span></h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Change</th></tr></thead>
+              <tbody data-diff-body></tbody>
+            </table>
+          </div>
+          <p>Approval expires in <span class="countdown" data-countdown>5:00</span>.</p>
+          <div class="form-actions">
+            <button type="button" class="btn btn-primary" data-update-confirm><span class="spinner" aria-hidden="true" hidden></span><span>Confirm update</span></button>
+          </div>
+        </div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </div>
+      {% endif %}
+
+      {% if can_recreate %}
+      <form class="subcard stack-sm" data-action="recreate" novalidate>
+        <h3>Recreate</h3>
+        <p>Cancels this submission and starts a new create for the same answers. Drata may already hold a vendor from the unconfirmed attempt, so this can create a duplicate.</p>
+        <div class="field">
+          <label class="field-label" for="recreate-reason">Written reason</label>
+          <p class="field-help" id="recreate-reason-help">At least 10 characters.</p>
+          <textarea class="textarea textarea-short" id="recreate-reason" name="reason" rows="3" maxlength="500" aria-describedby="recreate-reason-help recreate-reason-error"></textarea>
+          <p class="field-error" id="recreate-reason-error" data-error-for="reason" hidden></p>
+        </div>
+        <label class="choice"><input type="checkbox" name="acknowledgeDuplicateRisk" id="recreate-ack" aria-describedby="recreate-ack-error"> I understand this may create a duplicate vendor in Drata.</label>
+        <p class="field-error" id="recreate-ack-error" data-error-for="acknowledgeDuplicateRisk" hidden></p>
+        <div class="form-actions"><button type="submit" class="btn btn-danger"><span class="spinner" aria-hidden="true" hidden></span><span>Recreate</span></button></div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </form>
+      {% endif %}
+
+      {% if can_cancel %}
+      <form class="subcard stack-sm" data-action="cancel" novalidate>
+        <h3>Cancel submission</h3>
+        <p>Closes this submission without sending anything further to Drata. It does not undo anything already created there.</p>
+        <div class="field">
+          <label class="field-label" for="cancel-reason">Written reason</label>
+          <p class="field-help" id="cancel-reason-help">At least 10 characters.</p>
+          <textarea class="textarea textarea-short" id="cancel-reason" name="reason" rows="3" maxlength="500" aria-describedby="cancel-reason-help cancel-reason-error"></textarea>
+          <p class="field-error" id="cancel-reason-error" data-error-for="reason" hidden></p>
+        </div>
+        <div class="form-actions"><button type="submit" class="btn btn-danger"><span class="spinner" aria-hidden="true" hidden></span><span>Cancel submission</span></button></div>
+        <div class="banner" data-tone="critical" role="alert" tabindex="-1" data-action-status hidden></div>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="attempts-title">
+    <h2 id="attempts-title">Attempts</h2>
+    <div class="table-wrap">
+      {% if d.attempts %}
+      <table class="table table-stack">
+        <thead><tr><th scope="col">Attempt</th><th scope="col">Request</th><th scope="col">Started</th><th scope="col">Finished</th><th scope="col">HTTP status</th><th scope="col">Outcome</th><th scope="col">Dispatched</th></tr></thead>
+        <tbody>
+          {% for a in d.attempts %}
+          <tr>
+            <td data-label="Attempt">{{ a.attempt_number }}</td>
+            <td data-label="Request"><span class="mono">{{ a.method }} {{ a.path_template }}</span></td>
+            <td data-label="Started">{{ when(a.started_at) }}</td>
+            <td data-label="Finished">{{ when(a.finished_at) }}</td>
+            <td data-label="HTTP status">{{ a.http_status if a.http_status else 'None' }}</td>
+            <td data-label="Outcome"><span class="mono">{{ a.outcome or 'Pending' }}</span></td>
+            <td data-label="Dispatched">{{ yes_no(a.dispatched) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="table-empty">No write attempts yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="answers-title">
+    <h2 id="answers-title">Answers</h2>
+    {% if d.answers is none %}
+    <p class="muted">Answers are not available.</p>
+    {% else %}
+    <dl class="dl-grid">
+      {% for a in d.answers %}
+      <dt>{{ a.label }}<span class="sub muted small">{% if a.destination.kind == 'native' %}Drata field {{ a.destination.field }}{% elif a.destination.kind == 'custom' %}Custom field {{ a.destination.customFieldId }}{% else %}Kept locally only{% endif %}</span></dt>
+      <dd class="pre-wrap">{{ show_value(a.value) }}</dd>
+      {% endfor %}
+    </dl>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="payload-title">
+    <h2 id="payload-title">Payload</h2>
+    {% if d.payload is none %}
+    <p class="muted">No payload is stored.</p>
+    {% else %}
+    <p class="muted">Exact body prepared for the Drata create request, including the correlation marker.</p>
+    <pre class="code-block" id="payload-view" tabindex="0" aria-label="Payload JSON"></pre>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="events-title">
+    <h2 id="events-title">Audit events</h2>
+    <div class="table-wrap">
+      {% if d.events %}
+      <table class="table table-stack">
+        <thead><tr><th scope="col">Time</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Details</th></tr></thead>
+        <tbody>
+          {% for e in d.events %}
+          <tr>
+            <td data-label="Time">{{ when(e.at) }}</td>
+            <td data-label="Actor"><span class="mono">{{ e.actor }}</span></td>
+            <td data-label="Action"><span class="mono">{{ e.action }}</span></td>
+            <td data-label="Details"><span class="mono small">{{ e.meta }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="table-empty">No audit events recorded.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="export-title">
+    <h2 id="export-title">Export</h2>
+    <div class="banner" data-tone="warning">
+      <p class="banner-title">Contains customer data</p>
+      <p>The export includes decrypted answers and payload. Store it according to your data handling policy. The export is audited and is not kept on the server.</p>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" id="export-button"><span class="spinner" aria-hidden="true" hidden></span><span>Export submission JSON</span></button>
+    </div>
+    <div class="banner" data-tone="critical" role="alert" id="export-status" hidden></div>
+  </section>
+</div>
+{% endblock %}

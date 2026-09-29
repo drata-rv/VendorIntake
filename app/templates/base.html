@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}{% endblock %} | Vendor intake bridge</title>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='cosmos-tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header-brand">
+      <a class="brand-name" href="{{ url_for('routes.index') if current_user else url_for('routes.login_get') }}">Vendor intake bridge</a>
+      <span class="tag" data-tone="primary">Customer-managed</span>
+    </div>
+    {% if tenant %}
+    <p class="app-header-tenant"><span class="visually-hidden">Connected Drata tenant: </span>{{ tenant.name or 'Unnamed tenant' }}{% if tenant.domain %} <span class="mono">{{ tenant.domain }}</span>{% endif %}</p>
+    {% endif %}
+    <div class="app-header-tools">
+      <button type="button" class="btn btn-tertiary btn-sm" data-theme-toggle aria-pressed="false">Dark theme</button>
+      {% if current_user %}
+      <span class="app-user">{{ current_user.email }} <span class="tag">{{ 'Administrator' if current_user.role == 'ADMIN' else 'Requester' }}</span></span>
+      <form method="post" action="{{ url_for('routes.logout') }}" data-logout-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-secondary btn-sm">Sign out</button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if current_user and layout != 'interstitial' and not current_user.must_change_password %}
+  {% set admin = current_user.role == 'ADMIN' %}
+  {% set mine = request.args.get('mine') %}
+  <nav class="app-nav" aria-label="Main">
+    <ul>
+      <li><a href="{{ url_for('routes.intake') }}"{% if nav == 'routes.intake' %} aria-current="page"{% endif %}>Intake</a></li>
+      <li><a href="{{ url_for('routes.history_page') }}{{ '?mine=1' if admin else '' }}"{% if nav in ('routes.history_page', 'routes.result_page') and (not admin or mine) %} aria-current="page"{% endif %}>My submissions</a></li>
+      {% if admin %}
+      <li><a href="{{ url_for('routes.history_page') }}"{% if nav in ('routes.history_page', 'routes.submission_page') and not mine %} aria-current="page"{% endif %}>Submissions</a></li>
+      <li><a href="{{ url_for('routes.form_page') }}"{% if nav == 'routes.form_page' %} aria-current="page"{% endif %}>Form</a></li>
+      <li><a href="{{ url_for('routes.connection_page') }}"{% if nav == 'routes.connection_page' %} aria-current="page"{% endif %}>Connection</a></li>
+      <li><a href="{{ url_for('routes.users_page') }}"{% if nav == 'routes.users_page' %} aria-current="page"{% endif %}>Users</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  <main id="main" class="{{ 'interstitial' if layout == 'interstitial' else 'app-main' }}" tabindex="-1">
+    <div class="{% block page_class %}page page-centered{% endblock %}">
+      <div class="page-header">
+        <h1>{% block heading %}{% endblock %}</h1>
+        {% block actions %}{% endblock %}
+      </div>
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="app-footer">This application is operated by your organization. It is not a Drata product.</footer>
+
+  {% if current_user %}
+  <dialog class="modal" id="reauth-dialog" aria-labelledby="reauth-title">
+    <form id="reauth-form" novalidate>
+      <div class="modal-header"><h2 id="reauth-title">Confirm your password</h2></div>
+      <div class="modal-body">
+        <p>Credential changes need a sign-in within the last five minutes. Enter your password to continue.</p>
+        <div class="field">
+          <label class="field-label" for="reauth-password">Password</label>
+          <input class="input" id="reauth-password" name="password" type="password" autocomplete="current-password" aria-describedby="reauth-error">
+          <p class="field-error" id="reauth-error" hidden></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dialog-cancel>Cancel</button>
+        <button type="submit" class="btn btn-primary">Confirm password</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="modal" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <form id="confirm-form" method="dialog">
+      <div class="modal-header"><h2 id="confirm-title"></h2></div>
+      <div class="modal-body" id="confirm-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dialog-cancel>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="confirm-ok"></button>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
+</body>
+</html>

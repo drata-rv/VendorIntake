@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_macros.html" import when %}
+{% block title %}Users{% endblock %}
+{% block page_class %}page page-full{% endblock %}
+{% block heading %}Users{% endblock %}
+
+{% macro user_row(u, me_id) %}
+<tr data-user-id="{{ u.id }}" data-active="{{ 'true' if u.active else 'false' }}" data-role="{{ u.role }}">
+  <td data-label="Email"><span data-cell="email">{{ u.email }}</span>{% if me_id and u.id == me_id %} <span class="tag">You</span>{% endif %}</td>
+  <td data-label="Role"><span data-cell="role">{{ 'Administrator' if u.role == 'ADMIN' else 'Requester' }}</span></td>
+  <td data-label="Status">
+    <span class="pill" data-cell="status" data-tone="{{ 'success' if u.active else 'neutral' }}">{{ 'Active' if u.active else 'Disabled' }}</span>
+    <span class="sub" data-cell="mustChange"{% if not u.must_change_password %} hidden{% endif %}>Must change password</span>
+  </td>
+  <td data-label="Last sign-in">{% if u.last_login_at %}{{ when(u.last_login_at) }}{% else %}<span class="muted">Never</span>{% endif %}</td>
+  <td data-label="Actions">
+    {% if me_id and u.id == me_id %}
+    <a href="{{ url_for('routes.password_page') }}">Change your password</a>
+    {% else %}
+    <div class="row">
+      <button type="button" class="btn btn-secondary btn-sm" data-user-action="toggle">{{ 'Disable' if u.active else 'Enable' }}<span class="visually-hidden" data-sr-email> {{ u.email }}</span></button>
+      <label class="visually-hidden" data-role-label for="role-{{ u.id }}">Role for <span data-sr-email>{{ u.email }}</span></label>
+      <select class="select" data-role-select id="role-{{ u.id }}">
+        <option value="REQUESTER"{% if u.role == 'REQUESTER' %} selected{% endif %}>Requester</option>
+        <option value="ADMIN"{% if u.role == 'ADMIN' %} selected{% endif %}>Administrator</option>
+      </select>
+      <button type="button" class="btn btn-secondary btn-sm" data-user-action="role">Set role<span class="visually-hidden" data-sr-email> {{ u.email }}</span></button>
+      <button type="button" class="btn btn-secondary btn-sm" data-user-action="reset">Reset password<span class="visually-hidden" data-sr-email> {{ u.email }}</span></button>
+    </div>
+    {% endif %}
+    <p class="small" data-row-status role="status"></p>
+  </td>
+</tr>
+{% endmacro %}
+
+{% block content %}
+<div class="stack" data-users-page>
+  <section class="card" aria-labelledby="create-user-title">
+    <h2 id="create-user-title">Create user</h2>
+    <form id="create-user-form" class="stack" novalidate>
+      <div class="form-grid">
+        <div class="field">
+          <label class="field-label" for="new-email">Email</label>
+          <input class="input" id="new-email" name="email" type="email" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="new-email-error">
+          <p class="field-error" id="new-email-error" data-error-for="email" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="new-role">Role</label>
+          <select class="select" id="new-role" name="role">
+            <option value="REQUESTER" selected>Requester</option>
+            <option value="ADMIN">Administrator</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="create-user-button"><span class="spinner" aria-hidden="true" hidden></span><span>Create user</span></button>
+      </div>
+      <div class="banner" data-tone="critical" role="alert" id="users-error" hidden></div>
+    </form>
+  </section>
+
+  <section class="secret-panel" id="secret-panel" tabindex="-1" aria-labelledby="secret-title" hidden>
+    <h2 id="secret-title">Temporary password</h2>
+    <p>For <strong data-secret-email></strong>. It is shown once and is not stored in a readable form. Share it through a separate secure channel. The user must change it at first sign-in.</p>
+    <code class="secret-value" data-secret-value></code>
+    <div class="row">
+      <button type="button" class="btn btn-secondary" data-copy-secret>Copy password</button>
+      <button type="button" class="btn btn-tertiary" data-dismiss-secret>Dismiss</button>
+      <span class="small" role="status" data-copy-status></span>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table class="table table-stack" id="users-table">
+      <caption class="visually-hidden">Application users</caption>
+      <thead>
+        <tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col">Actions</th></tr>
+      </thead>
+      <tbody id="users-body">
+        {% for u in users %}
+        {{ user_row(u, current_user.id) }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <template id="user-row-template">
+    {{ user_row({'id': '', 'email': '', 'role': 'REQUESTER', 'active': true, 'must_change_password': true, 'last_login_at': none}, '') }}
+  </template>
+</div>
+{% endblock %}

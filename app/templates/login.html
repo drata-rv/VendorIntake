@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% set layout = 'interstitial' %}
+{% block title %}Sign In{% endblock %}
+{% block page_class %}interstitial-panel{% endblock %}
+{% block heading %}Sign In{% endblock %}
+{% block content %}
+<p class="muted">Use the account your administrator created for you.</p>
+<div id="login-feedback"></div>
+{% if error %}
+<div class="banner" data-tone="critical" role="alert" tabindex="-1" id="login-error">
+  <p class="banner-title">Could not sign in</p>
+  <p>{{ error }}</p>
+</div>
+{% endif %}
+<form method="post" action="{{ url_for('routes.login_post') }}" class="stack" data-login-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field">
+    <label class="field-label" for="login-email">Email</label>
+    <input class="input" id="login-email" name="email" type="email" autocomplete="username" spellcheck="false" autocapitalize="off" required>
+  </div>
+  <div class="field">
+    <label class="field-label" for="login-password">Password</label>
+    <input class="input" id="login-password" name="password" type="password" autocomplete="current-password" required>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Sign in</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pill, when, plural %}
+{% set admin = current_user.role == 'ADMIN' %}
+{% block title %}{{ 'Submissions' if admin else 'My Submissions' }}{% endblock %}
+{% block page_class %}page page-full{% endblock %}
+{% block heading %}{{ 'Submissions' if admin else 'My Submissions' }}{% endblock %}
+{% block actions %}
+<div class="page-header-actions">
+  <a class="btn btn-primary" href="{{ url_for('routes.intake') }}">New submission</a>
+</div>
+{% endblock %}
+{% block content %}
+{% if admin %}
+<form class="row card filter-row" method="get" action="{{ url_for('routes.history_page') }}" data-history-filter>
+  <div class="field">
+    <label class="field-label" for="state-filter">Status</label>
+    <select class="select" id="state-filter" name="state">
+      <option value="">All statuses</option>
+      {% for s in states %}<option value="{{ s }}"{% if s == filter_state %} selected{% endif %}>{{ s|replace('_', ' ')|capitalize }}</option>{% endfor %}
+    </select>
+  </div>
+  <label class="choice"><input type="checkbox" name="mine" value="1" data-only-mine{% if request.args.get('mine') %} checked{% endif %}> Only my submissions</label>
+  <button type="submit" class="btn btn-secondary">Apply filter</button>
+</form>
+{% endif %}
+
+<div class="table-wrap">
+  {% if rows %}
+  <table class="table table-stack" id="history-table">
+    <caption class="visually-hidden">{{ 'All submissions' if admin else 'Your submissions' }}, newest first</caption>
+    <thead>
+      <tr>
+        <th scope="col">Local reference</th>
+        <th scope="col">Submitted</th>
+        <th scope="col">Status</th>
+        <th scope="col">Drata ID</th>
+        <th scope="col">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr{% if admin %} data-mine="{{ 'true' if row.requesterEmail == current_user.email else 'false' }}"{% endif %}>
+        <td data-label="Local reference">
+          <span class="mono" title="{{ row.id }}">{{ row.id[:8] }}</span>
+          {% if row.vendorName %}<span class="sub">{{ row.vendorName }}</span>{% endif %}
+          {% if admin and row.requesterEmail %}<span class="sub">{{ row.requesterEmail }}</span>{% endif %}
+        </td>
+        <td data-label="Submitted">{{ when(row.createdAt) }}</td>
+        <td data-label="Status">
+          {{ pill(row.state) }}
+          {% if admin and row.reason %}<span class="sub">{{ row.reason|replace('_', ' ')|capitalize }}</span>{% endif %}
+          {% if row.retentionWarning %}<span class="sub">Expires in {{ plural(row.expiresInDays, 'day', 'days') }}</span>{% endif %}
+        </td>
+        <td data-label="Drata ID">{% if row.drataId %}<span class="mono">{{ row.drataId }}</span>{% else %}<span class="muted">None</span>{% endif %}</td>
+        <td data-label="Action">
+          {% if admin %}
+          <a href="{{ url_for('routes.submission_page', sid=row.id) }}">Review<span class="visually-hidden"> submission {{ row.id[:8] }}</span></a>
+          {% else %}
+          <a href="{{ url_for('routes.result_page', sid=row.id) }}">View result<span class="visually-hidden"> for submission {{ row.id[:8] }}</span></a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="table-empty">{% if filter_state %}No submissions match this status.{% else %}No submissions yet. <a href="{{ url_for('routes.intake') }}">Start a vendor intake</a>.{% endif %}</p>
+  {% endif %}
+</div>
+<p class="muted small" id="filter-empty" hidden>No submissions match this filter.</p>
+{% endblock %}

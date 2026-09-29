@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pill, when, plural %}
+{% set tones = {'CREATED': 'success', 'UPDATED': 'success', 'IN_PROGRESS': 'primary', 'NEEDS_CORRECTION': 'critical', 'BLOCKED': 'critical', 'CANCELLED': 'neutral'} %}
+{% set titles = {'CREATED': 'Vendor created', 'UPDATED': 'Vendor updated', 'IN_PROGRESS': 'Submission in progress', 'NEEDS_REVIEW': 'Waiting for administrator review', 'NEEDS_CORRECTION': 'Correction needed', 'BLOCKED': 'Submission blocked', 'RETRYABLE': 'Nothing was sent to Drata', 'UNKNOWN': 'Outcome not confirmed', 'CANCELLED': 'Submission closed'} %}
+{% block title %}Submission Result{% endblock %}
+{% block heading %}Submission Result{% endblock %}
+{% block actions %}
+<div class="page-header-actions">
+  <a class="btn btn-secondary" href="{{ url_for('routes.intake') }}">New submission</a>
+  <a class="btn btn-secondary" href="{{ url_for('routes.history_page') }}">{{ 'Submissions' if current_user.role == 'ADMIN' else 'My submissions' }}</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card card-raised">
+  <div class="banner" data-tone="{{ tones.get(sub.state, 'warning') }}" role="status">
+    <p class="banner-title">{{ titles.get(sub.state, 'Submission status') }}</p>
+    <p>{{ sub.message }}</p>
+  </div>
+  <dl class="dl-grid" id="result-details">
+    <dt>Status</dt>
+    <dd>{{ pill(sub.state) }}</dd>
+    {% if sub.vendorName %}
+    <dt>Vendor</dt>
+    <dd>{{ sub.vendorName }}</dd>
+    {% endif %}
+    <dt>Drata ID</dt>
+    <dd>{% if sub.drataId %}<span class="mono" data-drata-id>{{ sub.drataId }}</span>{% else %}<span class="muted">Not assigned</span>{% endif %}</dd>
+    {% if sub.link %}
+    <dt>Drata link</dt>
+    <dd><a href="{{ sub.link }}" target="_blank" rel="noopener noreferrer">Open vendor in Drata</a></dd>
+    {% endif %}
+    <dt>Action</dt>
+    <dd>{{ 'Update existing vendor' if sub.operation == 'UPDATE' else 'Create prospective vendor' }}</dd>
+    <dt>Submitted</dt>
+    <dd>{{ when(sub.createdAt) }}</dd>
+    <dt>Last updated</dt>
+    <dd>{{ when(sub.updatedAt) }}</dd>
+    <dt>Local reference</dt>
+    <dd><span class="mono">{{ sub.id }}</span></dd>
+    {% if sub.retentionWarning %}
+    <dt>Retention</dt>
+    <dd><span class="pill" data-tone="warning">Expires in {{ plural(sub.expiresInDays, 'day', 'days') }}</span></dd>
+    {% endif %}
+  </dl>
+  {% set own = current_user.role != 'ADMIN' or sub.requesterEmail == current_user.email %}
+  {% if (sub.state == 'NEEDS_CORRECTION' and own) or current_user.role == 'ADMIN' %}
+  <div class="form-actions">
+    {% if sub.state == 'NEEDS_CORRECTION' and own %}
+    <a class="btn btn-primary" href="{{ url_for('routes.intake', correct=sub.id) }}">Correct and resubmit</a>
+    {% endif %}
+    {% if current_user.role == 'ADMIN' %}
+    <a class="btn btn-secondary" href="{{ url_for('routes.submission_page', sid=sub.id) }}">Open administrator detail</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

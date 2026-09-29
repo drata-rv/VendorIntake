@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Intake Form{% endblock %}
+{% block heading %}Intake Form{% endblock %}
+{% block content %}
+<div class="stack" data-editor>
+  <script type="application/json" id="editor-data">{{ {'schema': schema, 'version': version, 'active': active, 'native': native, 'enums': enums, 'customDefs': custom_defs, 'customEnabled': custom_enabled, 'inputTypes': input_types, 'customTypes': custom_types}|tojson }}</script>
+  <noscript><div class="banner" data-tone="warning"><p>The form editor needs JavaScript.</p></div></noscript>
+  <div id="editor-feedback"></div>
+
+  <section class="card" aria-labelledby="editor-status-title">
+    <h2 id="editor-status-title">Versions</h2>
+    <dl class="dl-grid">
+      <dt>Editing</dt>
+      <dd>Version <span id="editor-version">{{ version }}</span> <span id="editor-dirty" class="tag" hidden>Unsaved changes</span></dd>
+      <dt>Published</dt>
+      <dd id="editor-active">{% if active.version %}Version {{ active.version }}, {{ 'accepting submissions' if active.enabled else 'closed to new submissions' }}{% else %}Nothing published yet{% endif %}</dd>
+    </dl>
+    <p class="muted small">Every save creates a new immutable version. Existing submissions keep the version they were made against. Publishing changes what requesters see.</p>
+    <div class="form-actions">
+      <button type="button" class="btn btn-danger" id="disable-button"{% if not active.enabled %} hidden{% endif %}><span class="spinner" aria-hidden="true" hidden></span><span>Disable form</span></button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="editor-fields-title">
+    <div class="row card-title">
+      <h2 id="editor-fields-title">Fields</h2>
+      <button type="button" class="btn btn-secondary" id="add-field">Add field</button>
+    </div>
+    <div class="field">
+      <label class="field-label" for="form-currency">Currency for money fields</label>
+      <p class="field-help" id="form-currency-help">Three-letter code shown next to money inputs. No conversion is performed.</p>
+      <input class="input" id="form-currency" type="text" maxlength="3" autocomplete="off" spellcheck="false" aria-describedby="form-currency-help">
+    </div>
+    <div class="banner" data-tone="critical" role="alert" tabindex="-1" id="editor-errors" aria-labelledby="editor-errors-title" hidden>
+      <p class="banner-title" id="editor-errors-title">Fix these before publishing</p>
+      <ul id="editor-error-list"></ul>
+    </div>
+    <ol class="editor-list" id="editor-fields"></ol>
+    <div class="form-actions">
+      <button type="button" class="btn btn-primary" id="save-form"><span class="spinner" aria-hidden="true" hidden></span><span>Save as new version</span></button>
+      <button type="button" class="btn btn-secondary" id="publish-form"><span class="spinner" aria-hidden="true" hidden></span><span id="publish-label">Publish version {{ version }}</span></button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="preview-title">
+    <h2 id="preview-title">Preview</h2>
+    <p class="muted">Renders the payload with the same mapping code used for real submissions and a synthetic marker. Nothing is sent to Drata.</p>
+    <div class="field">
+      <label class="field-label" for="preview-answers">Sample answers, JSON by field id</label>
+      <textarea class="textarea" id="preview-answers" rows="8" spellcheck="false" aria-describedby="preview-answers-error"></textarea>
+      <p class="field-error" id="preview-answers-error" hidden></p>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" id="sample-answers">Generate sample answers</button>
+      <button type="button" class="btn btn-primary" id="preview-form"><span class="spinner" aria-hidden="true" hidden></span><span>Preview payload</span></button>
+    </div>
+    <div class="stack" id="preview-output" tabindex="-1" hidden>
+      <div class="banner" data-tone="primary" id="preview-banner"></div>
+      <div id="preview-schema-errors" class="banner" data-tone="critical" hidden>
+        <p class="banner-title">Form mapping errors</p>
+        <ul id="preview-schema-list"></ul>
+      </div>
+      <div id="preview-field-errors" class="banner" data-tone="critical" hidden>
+        <p class="banner-title">Sample answer errors</p>
+        <ul id="preview-field-list"></ul>
+      </div>
+      <div id="preview-warnings" class="banner" data-tone="warning" hidden>
+        <p class="banner-title">Warnings</p>
+        <ul id="preview-warning-list"></ul>
+      </div>
+      <div id="preview-retained" class="subcard" hidden>
+        <h3>Kept locally, not sent to Drata</h3>
+        <ul id="preview-retained-list"></ul>
+      </div>
+      <div id="preview-payload-wrap" hidden>
+        <h3>Payload for create</h3>
+        <pre class="code-block" id="preview-payload"></pre>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

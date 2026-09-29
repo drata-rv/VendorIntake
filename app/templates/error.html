@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% set layout = 'interstitial' %}
+{% set titles = {401: 'Sign In Required', 403: 'Access Denied', 404: 'Page Not Found', 405: 'Action Not Allowed', 413: 'Request Too Large'} %}
+{% set heading_text = titles.get(status, 'Something Went Wrong') %}
+{% block title %}{{ heading_text }}{% endblock %}
+{% block page_class %}interstitial-panel{% endblock %}
+{% block heading %}{{ heading_text }}{% endblock %}
+{% block content %}
+<div class="stack">
+  <p>{{ message }}</p>
+  <p class="muted small">Status {{ status }} <span class="tag mono">{{ code }}</span></p>
+  <div class="form-actions">
+    {% if current_user %}
+    <a class="btn btn-primary" href="{{ url_for('routes.index') }}">Go to start</a>
+    {% else %}
+    <a class="btn btn-primary" href="{{ url_for('routes.login_get') }}">Go to sign in</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
