@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from flask import current_app
 
-from . import forms, mappings
+from . import forms, mappings, vendor_index
 from .connection import acquire_write_lock, block_connection, client_for
 from .crypto import dec_json, enc_json
 from .db import audit, get_db, in_seconds, iso, new_id, parse_iso, settings_row, tx, utcnow
@@ -34,6 +34,8 @@ MESSAGES = {
     "UNKNOWN": "Outcome not confirmed. An administrator must reconcile with Drata before anything else is sent.",
     "CANCELLED": "Submission closed.",
 }
+VENDOR_EXISTS_MESSAGE = "Not submitted. This vendor is already in Drata."
+MATCH_NATIVE = {"name": "name", "website": "url"}
 
 
 def row_or_404(conn, sid: str):
@@ -77,8 +79,25 @@ def _linked(row) -> bool:
     return row["state"] == "CANCELLED" and row["state_reason"] == "LINKED_EXISTING"
 
 
+def _vendor_exists(row) -> bool:
+    return row["state"] == "CANCELLED" and row["state_reason"] == "VENDOR_EXISTS"
+
+
 def message_for(row) -> str:
-    return "Linked existing vendor. No vendor was created." if _linked(row) else MESSAGES[row["state"]]
+    if _linked(row):
+        return "Linked existing vendor. No vendor was created."
+    return VENDOR_EXISTS_MESSAGE if _vendor_exists(row) else MESSAGES[row["state"]]
+
+
+def vendor_exists_failure(conn, row, match: dict) -> ApiFail:
+    article = "a prospective" if match["kind"] == "prospective" else "an existing"
+    errors = {}
+    for fld in forms.get_version(conn, row["form_version"])["fields"]:
+        dest = fld["destination"]
+        for label in match["fields"]:
+            if dest["kind"] == "native" and dest["field"] == MATCH_NATIVE[label]:
+                errors[fld["id"]] = f"This {label} matches {article} vendor in Drata."
+    return ApiFail(409, "VENDOR_EXISTS", VENDOR_EXISTS_MESSAGE, errors, submission_id=row["id"], extra={"match": match})
 
 
 def public_body(row, admin: bool = False) -> dict:
@@ -226,7 +245,9 @@ def submit(user: dict, body, idem_key: str | None):
                 audit(conn, user["id"], "SUBMISSION_ACCEPTED", sid, {"formVersion": body["formVersion"]})
         except sqlite3.IntegrityError:
             return _replay(_by_key(conn, key), user, digest_value)
-        _run_create(conn, sid, user["id"])
+        match = _run_create(conn, sid, user["id"])
+        if match:
+            raise vendor_exists_failure(conn, row_or_404(conn, sid), match)
         return respond(row_or_404(conn, sid))
     finally:
         lock.release()
@@ -324,23 +345,32 @@ def _internal_failure(conn, sid: str, actor: str, exc: Exception) -> None:
     set_state(conn, sid, "UNKNOWN" if dispatched else "RETRYABLE", "INTERNAL_ERROR", exc.__class__.__name__, actor)
 
 
-def _run_create(conn, sid: str, actor: str, approved: set | None = None) -> None:
+def _run_create(conn, sid: str, actor: str, approved: set | None = None) -> dict | None:
     row = row_or_404(conn, sid)
     settings = settings_row(conn)
     client = client_for(settings, Budget())
     try:
         with tx(conn):
             set_state(conn, sid, "IN_PROGRESS", "PROCESSING", None, actor)
-        _create_pipeline(conn, sid, actor, approved, row, settings, client)
+        return _create_pipeline(conn, sid, actor, approved, row, settings, client)
     except ApiFail:
         raise
     except Exception as exc:
         _internal_failure(conn, sid, actor, exc)
+        return None
     finally:
         client.close()
 
 
-def _create_pipeline(conn, sid, actor, approved, row, settings, client) -> None:
+def _close_vendor_exists(conn, sid: str, candidates: list[dict], actor: str) -> dict:
+    match = vendor_index.candidate_match(candidates)
+    tag = f"{match['kind']}:{'+'.join(match['fields'])}".upper()
+    with tx(conn):
+        set_state(conn, sid, "CANCELLED", "VENDOR_EXISTS", tag, actor)
+    return match
+
+
+def _create_pipeline(conn, sid, actor, approved, row, settings, client) -> dict | None:
     schema, payload = forms.get_version(conn, row["form_version"]), _decrypt_payload(row)
     if _rate_limit_pending(settings):
         return set_state(conn, sid, "RETRYABLE", "RATE_LIMITED", "RATE_LIMIT_WINDOW", actor)
@@ -359,6 +389,8 @@ def _create_pipeline(conn, sid, actor, approved, row, settings, client) -> None:
     candidates = find_duplicates(vendors, payload)
     local = local_matches(conn, sid, payload)
     pending = [c for c in candidates if approved is None or c["id"] not in approved]
+    if pending and approved is None:
+        return _close_vendor_exists(conn, sid, pending, actor)
     if pending or local:
         reason = "LOCAL_UNRESOLVED_MATCH" if local else "DUPLICATE_SUSPECTED"
         with tx(conn):
@@ -367,6 +399,7 @@ def _create_pipeline(conn, sid, actor, approved, row, settings, client) -> None:
     if client.budget.remaining() < MIN_WRITE_BUDGET:
         return set_state(conn, sid, "RETRYABLE", "PREFLIGHT_BUDGET", "BUDGET", actor)
     _dispatch_create(conn, sid, client, payload, row, actor)
+    return None
 
 
 def _start_attempt(conn, sid: str, method: str, path: str, credential_version: int) -> int:
@@ -434,6 +467,7 @@ def _classify_failure(conn, sid, reply, actor, update: bool = False):
 
 
 def _verify_created(conn, sid, client, vendor_id, payload, actor):
+    vendor_index.note_created(vendor_id, payload["name"], payload.get("url"))
     try:
         vendor = client.get_vendor(vendor_id, custom_fields="customFields" in payload)
     except (ApiError, DrataError):
@@ -493,7 +527,9 @@ def retry(actor: str, sid: str, nonce):
         consume_nonce(conn, sid, "RETRY", nonce)
         with tx(conn):
             audit(conn, actor, "SUBMISSION_RETRY", sid)
-        _run_create(conn, sid, actor)
+        match = _run_create(conn, sid, actor)
+        if match:
+            raise vendor_exists_failure(conn, row_or_404(conn, sid), match)
     finally:
         lock.release()
     return respond(row_or_404(conn, sid), replay=True)
@@ -618,18 +654,27 @@ def _confirm_guard(row) -> None:
     _require_payload(row)
 
 
+def _approved_candidates(row) -> set | None:
+    # Only a legacy DUPLICATE_SUSPECTED row may carry approved Drata candidates; every other row closes on a Drata match.
+    if row["state_reason"] != "DUPLICATE_SUSPECTED":
+        return None
+    return {c["id"] for c in dec_json(row["candidates_enc"]) or [] if not str(c["id"]).startswith("L:")} or None
+
+
 def _confirm_new(conn, row, actor, body):
     _confirm_guard(row)
     reason = _reason(body)
-    approved = {c["id"] for c in dec_json(row["candidates_enc"]) or [] if not str(c["id"]).startswith("L:")}
     lock = acquire_write_lock()
     try:
-        _confirm_guard(row_or_404(conn, row["id"]))
+        current = row_or_404(conn, row["id"])
+        _confirm_guard(current)
         consume_nonce(conn, row["id"], "CONFIRM_NEW", body.get("nonce"))
         with tx(conn):
             conn.execute("UPDATE submissions SET duplicate_reason = ? WHERE id = ?", (reason, row["id"]))
             audit(conn, actor, "SUBMISSION_RESOLVE", row["id"], {"decision": "CONFIRM_NEW"})
-        _run_create(conn, row["id"], actor, approved=approved)
+        match = _run_create(conn, row["id"], actor, approved=_approved_candidates(current))
+        if match:
+            raise vendor_exists_failure(conn, row_or_404(conn, row["id"]), match)
     finally:
         lock.release()
     fresh = row_or_404(conn, row["id"])

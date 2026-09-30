@@ -36,7 +36,7 @@ class FakeDrata:
         self.vendors, self.calls, self.posts, self.puts = {}, [], [], []
         self.account = {"accountId": "acct-1", "name": "Acme", "domain": "acme.test"}
         self.create_mode, self.create_reply = "ok", None
-        self.get_fail, self.crash_on = False, set()
+        self.get_fail, self.crash_on, self.scan_error = False, set(), None
         self.definitions = {}
         self._ids = 1000
 
@@ -75,6 +75,8 @@ class FakeDrata:
         self.calls.append("scan_vendors")
         if "scan" in self.crash_on:
             raise RuntimeError("process died")
+        if self.scan_error:
+            raise self.scan_error
         return copy.deepcopy(self.vendors)
 
     def custom_field_definitions(self):
@@ -144,6 +146,9 @@ class Actor:
     def submit(self, body, key=None, version=1):
         return self.post("/api/submissions", {"formVersion": version, "answers": body}, key=key or str(uuid.uuid4()))
 
+    def lookup(self, **query):
+        return self.get("/api/vendor-lookup", query_string=query)
+
     def nonce(self, sid, action, **extra):
         return self.post(f"/api/admin/submissions/{sid}/action-nonce", {"action": action, **extra}).get_json()["nonce"]
 
@@ -152,6 +157,14 @@ class Actor:
 
     def reconcile(self, sid):
         return self.post(f"/api/admin/submissions/{sid}/reconcile")
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
 
 
 def activate_connection(conn, fernet, key=FAKE_KEY):
@@ -169,6 +182,16 @@ def make_actor(app, conn, email, role="REQUESTER", must_change=False):
     uid = auth.create_user(conn, email, role, PASSWORD, must_change, "SYSTEM")
     token, csrf = auth.issue_session(conn, uid)
     return Actor(app, uid, email, token, csrf)
+
+
+# Review row as stored before vendor blocking: NEEDS_REVIEW / DUPLICATE_SUSPECTED holding its candidate.
+def legacy_duplicate(app, conn, actor, vendor_id, status=None):
+    assert actor.submit(answers()).status_code == 409
+    sid = only_submission(conn)["id"]
+    candidate = [{"id": vendor_id, "name": None, "url": None, "status": status, "reasons": ["NAME"]}]
+    conn.execute("UPDATE submissions SET state = 'NEEDS_REVIEW', state_reason = 'DUPLICATE_SUSPECTED', last_error = NULL,"
+                 " terminal_at = NULL, candidates_enc = ? WHERE id = ?", (crypto.enc_json(candidate, app.extensions["fernet"]), sid))
+    return sid
 
 
 def sub(conn, sid):
@@ -205,7 +228,8 @@ def app(tmp_path, fake):
     forms.seed_starter(conn)
     conn.close()
     application = create_app({"APP_BASE_URL": ORIGIN, "DATABASE_PATH": path, "ENCRYPTION_KEY_FILE": str(key_file),
-                              "SKIP_STARTUP": True, "DRATA_MIN_INTERVAL": 0})
+                              "SKIP_STARTUP": True, "DRATA_MIN_INTERVAL": 0,
+                              "VENDOR_INDEX_ASYNC_REFRESH": False})
     application.extensions["drata_factory"] = fake.factory
     return application
 
@@ -236,6 +260,13 @@ def requester(app, conn, ready):
 @pytest.fixture
 def other(app, conn, ready):
     return make_actor(app, conn, "bob@bridge.test")
+
+
+@pytest.fixture
+def clock(app):
+    tick = Clock()
+    app.extensions["vendor_index"].clock = app.extensions["lookup_throttle"].clock = tick
+    return tick
 
 
 @pytest.fixture

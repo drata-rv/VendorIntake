@@ -84,7 +84,7 @@ def starter_form() -> dict:
 
     return {"currency": "USD", "fields": [
         f("vendor_name", "Vendor name", "text", native("name"), True, "Use legal or commonly recognized vendor name.", maxLength=191),
-        f("vendor_website", "Vendor website", "url", native("url"), True, "Used to warn about possible duplicates."),
+        f("vendor_website", "Vendor website", "url", native("url"), True, "Checked against vendors already in Drata."),
         f("services_provided", "Services provided", "textarea", native("servicesProvided"), True),
         f("data_stored", "Data stored", "textarea", native("dataStored")),
         f("stores_pii", "Stores PII?", "boolean", native("hasPii"), True),

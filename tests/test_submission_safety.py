@@ -3,7 +3,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from conftest import answers, attempts, envelope, make_actor, only_submission, settings, sub
+from conftest import answers, attempts, envelope, legacy_duplicate, make_actor, only_submission, settings, sub
 
 from app import db, drata, mappings, submissions
 from app.errors import ApiFail
@@ -127,29 +127,6 @@ def test_verification_failure_after_201_keeps_id_and_never_reposts(admin, reques
     fake.get_fail = False
     done = body_of(admin.reconcile(sid))
     assert (done["state"], done["reconcile"]) == ("CREATED", "VERIFIED") and fake.post_count == 1
-
-
-DUPLICATES = [
-    ("same name, null status", {"name": "  zorblax   INDUSTRIES ", "url": None, "status": None}, True),
-    ("same host, archived", {"name": "Legacy Holdings", "url": "https://ZORBLAX.example./about", "status": "ARCHIVED"}, True),
-    ("www host not collapsed", {"name": "Legacy Holdings", "url": "https://www.zorblax.example", "status": "ACTIVE"}, False),
-]
-
-
-@pytest.mark.parametrize("existing,is_dup", [c[1:] for c in DUPLICATES], ids=[c[0] for c in DUPLICATES])
-def test_tenant_duplicate_needs_review_and_hides_candidates_from_requester(admin, requester, fake, conn, existing, is_dup):
-    fake.add_vendor(id=987654321, **existing)
-    resp = requester.submit(answers())
-    sid = body_of(resp)["submissionId"]
-    if not is_dup:
-        assert resp.status_code == 201 and fake.post_count == 1
-        return
-    assert resp.status_code == 202 and body_of(resp)["state"] == "NEEDS_REVIEW" and fake.post_count == 0
-    assert sub(conn, sid)["state_reason"] == "DUPLICATE_SUSPECTED"
-    seen = resp.get_data(as_text=True) + requester.get(f"/api/submissions/{sid}").get_data(as_text=True)
-    assert "987654321" not in seen and "Legacy" not in seen and "candidates" not in seen
-    candidates = body_of(admin.get(f"/api/submissions/{sid}"))["candidates"]
-    assert [c["id"] for c in candidates] == [987654321]
 
 
 def test_uncertain_write_blocks_second_submission_of_same_vendor(requester, other, fake, conn):
@@ -291,7 +268,7 @@ def test_correction_links_to_original_only_for_own_rejected_submission(requester
     assert linked.status_code == 201
     assert sub(conn, body_of(linked)["submissionId"])["origin_submission_id"] == original
     again = requester.post("/api/submissions", {**fixed, "originSubmissionId": original}, key=str(uuid.uuid4()))
-    assert again.status_code in (201, 202) and sub(conn, original)["state"] == "NEEDS_CORRECTION"
+    assert again.status_code == 409 and sub(conn, original)["state"] == "NEEDS_CORRECTION"
 
 
 def test_retry_after_is_clamped_to_one_hour(requester, fake, conn):
@@ -331,9 +308,9 @@ def test_malformed_submission_bodies_never_500(requester, body):
     assert requester.post("/api/submissions", body, key=str(uuid.uuid4())).status_code in (400, 422)
 
 
-def test_linked_existing_hides_the_other_vendor_from_the_requester(admin, requester, fake, conn):
+def test_linked_existing_hides_the_other_vendor_from_the_requester(app, admin, requester, fake, conn):
     target = fake.add_vendor(name="Zorblax Industries", url=None, status=None)
-    sid = body_of(requester.submit(answers()))["submissionId"]
+    sid = legacy_duplicate(app, conn, requester, target)
     resolve = admin.post(f"/api/admin/submissions/{sid}/resolve", {
         "decision": "LINK_EXISTING", "targetDrataId": target, "reason": "same entity",
         "nonce": admin.nonce(sid, "LINK_EXISTING", targetDrataId=target)})

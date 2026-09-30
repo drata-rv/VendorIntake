@@ -16,6 +16,7 @@ from . import auth, db
 from .crypto import DecryptError, load_fernet
 from .drata import DEFAULT_BASE_URL, DrataClient, Gate
 from .errors import ApiFail
+from .vendor_index import MAX_AGE, Throttle, VendorIndex
 
 LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 NO_SESSION_ENDPOINTS = {"static", "routes.healthz", "routes.readyz"}
@@ -43,8 +44,11 @@ def load_config(env, overrides=None) -> dict:
         "DRATA_LINK_HOSTS": tuple(h.strip().lower() for h in env.get("DRATA_LINK_HOSTS", "").split(",") if h.strip()),
         "DRATA_MIN_INTERVAL": float(env.get("DRATA_MIN_INTERVAL", "1.0")),
         "TEMPLATES_AUTO_RELOAD": env.get("BRIDGE_TEMPLATES_RELOAD") == "1",
+        "VENDOR_INDEX_TTL": float(env.get("VENDOR_INDEX_TTL", "300")),
+        "VENDOR_INDEX_ASYNC_REFRESH": True,
     }
     cfg.update(overrides or {})
+    cfg["VENDOR_INDEX_TTL"] = min(max(float(cfg["VENDOR_INDEX_TTL"]), 1.0), MAX_AGE)
     base = urlsplit(cfg["APP_BASE_URL"])
     if base.scheme not in ("https", "http") or not base.hostname or (base.scheme == "http" and base.hostname not in LOOPBACK):
         raise RuntimeError("APP_BASE_URL must be an https URL (http allowed for loopback only).")
@@ -64,6 +68,9 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.extensions["gate"] = Gate(app.config["DRATA_MIN_INTERVAL"])
     app.extensions["drata_factory"] = lambda api_key, budget=None: DrataClient(
         app.config["DRATA_BASE_URL"], api_key, budget, app.extensions["gate"])
+    app.extensions["index_gate"] = Gate(app.config["DRATA_MIN_INTERVAL"])
+    app.extensions["vendor_index"] = VendorIndex(app)
+    app.extensions["lookup_throttle"] = Throttle()
     if app.config["TRUST_PROXY_HOPS"] > 0:
         n = app.config["TRUST_PROXY_HOPS"]
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=n, x_proto=n, x_host=n)

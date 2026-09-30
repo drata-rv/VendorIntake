@@ -5,6 +5,23 @@
   const APPROVAL_MS = 300000;
   const FLASH_KEY = 'bridge-flash';
   const UNCONFIRMED = 'Outcome not confirmed. Check submission status before trying again.';
+  const LOOKUP_DEBOUNCE_MS = 450;
+  const LOOKUP_SPINNER_DELAY_MS = 300;
+  const LOOKUP_BACKOFF_MS = 30000;
+  const LOOKUP_BACKOFF_MAX_S = 120;
+  const LOOKUP_NAME_MIN = 2;
+  const LOOKUP_NAME_MAX = 191;
+  const LOOKUP_WEBSITE_MAX = 768;
+  const LOOKUP_KINDS = ['prospective', 'existing'];
+  const LOOKUP_FIELDS = ['name', 'website'];
+  const LOOKUP_CHECKING = 'Checking Drata';
+  const LOOKUP_UNAVAILABLE = 'Could not check Drata right now. It is checked again when you submit.';
+  const LOOKUP_CLEAR = 'No match found in Drata. The rest of the form is unlocked.';
+  const LOOKUP_UNLOCKED = 'The rest of the form is unlocked.';
+  const LOOKUP_ANNOUNCE_MS = 5000;
+  const BLOCK_TITLE = 'This vendor is already in Drata';
+  const BLOCK_HINT = 'Change the name or website if this is a different vendor. Ask an administrator if the record needs an update.';
+  const BLOCK_ID = 'vendor-block-banner';
 
   const $ = (selector, root) => (root || document).querySelector(selector);
   const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
@@ -373,6 +390,304 @@
     });
   }
 
+  function parseMatch(raw, fallback) {
+    if (!raw || LOOKUP_KINDS.indexOf(raw.kind) === -1) return null;
+    let fields = Array.isArray(raw.fields) ? LOOKUP_FIELDS.filter((name) => raw.fields.indexOf(name) !== -1) : [];
+    if (!fields.length && fallback) fields = fallback;
+    return fields.length ? { kind: raw.kind, fields } : null;
+  }
+
+  function matchKind(kind) {
+    return kind === 'prospective' ? 'a prospective' : 'an existing';
+  }
+
+  function initVendorLookup(form, button) {
+    const inert = { blocked: () => false, applyServerBlock: () => false };
+    const inputs = {};
+    $$('[data-vendor-lookup]', form).forEach((input) => { inputs[input.dataset.vendorLookup] = input; });
+    const keys = LOOKUP_FIELDS.filter((key) => inputs[key]);
+    const host = $('[data-vendor-block]', form);
+    const live = $('#vendor-lookup-live');
+    if (!keys.length || !host || !live) return inert;
+
+    const parts = {};
+    keys.forEach((key) => {
+      const input = inputs[key];
+      const row = el('p', { class: 'lookup-status', hidden: true, 'aria-hidden': 'true' }, [
+        el('span', { class: 'spinner', 'aria-hidden': 'true' }),
+        el('span', { 'data-lookup-status-text': '' }),
+      ]);
+      const error = el('p', { class: 'field-error', id: input.id + '-lookup-error', hidden: true });
+      input.insertAdjacentElement('afterend', error);
+      input.insertAdjacentElement('afterend', row);
+      input.setAttribute('aria-describedby', ((input.getAttribute('aria-describedby') || '') + ' ' + error.id).trim());
+      parts[key] = { row, error };
+    });
+
+    const locked = new Set();
+    const marked = new Set();
+    const lookupInputs = keys.map((key) => inputs[key]);
+    let activeKey = keys[0];
+    let block = null;
+    let banner = null;
+    let describedBy = null;
+    let last = null;
+    let inflightKey = null;
+    let controller = null;
+    let debounce = null;
+    let spinner = null;
+    let liveTimer = null;
+    let pending = false;
+    let backoffUntil = 0;
+    let seq = 0;
+
+    function setStatus(next) {
+      clearTimeout(liveTimer);
+      keys.forEach((key) => {
+        const row = parts[key].row;
+        const show = key === activeKey && (next === 'checking' || next === 'unavailable');
+        row.hidden = !show;
+        $('.spinner', row).hidden = next !== 'checking';
+        if (show) $('[data-lookup-status-text]', row).textContent = next === 'checking' ? LOOKUP_CHECKING : LOOKUP_UNAVAILABLE;
+      });
+      live.textContent = next === 'checking' ? LOOKUP_CHECKING : (next === 'unavailable' ? LOOKUP_UNAVAILABLE : '');
+    }
+
+    function lockForm() {
+      const focused = document.activeElement;
+      $$('input, select, textarea, button', form).forEach((control) => {
+        if (control === button || control.disabled || lookupInputs.indexOf(control) !== -1) return;
+        control.disabled = true;
+        locked.add(control);
+      });
+      form.setAttribute('data-vendor-locked', '');
+      button.setAttribute('aria-disabled', 'true');
+      if (describedBy === null) describedBy = button.getAttribute('aria-describedby') || '';
+      button.setAttribute('aria-describedby', BLOCK_ID);
+      return Boolean(focused && locked.has(focused));
+    }
+
+    function unlockForm() {
+      locked.forEach((control) => { control.disabled = false; });
+      locked.clear();
+      form.removeAttribute('data-vendor-locked');
+      button.removeAttribute('aria-disabled');
+      if (describedBy === null) return;
+      if (describedBy) button.setAttribute('aria-describedby', describedBy);
+      else button.removeAttribute('aria-describedby');
+      describedBy = null;
+    }
+
+    // Returns a callback that scrolls the page back so the focused field keeps its position after a layout change above it.
+    function holdPosition() {
+      const node = document.activeElement;
+      const scroller = document.getElementById('main');
+      if (!node || !scroller || !form.contains(node)) return () => {};
+      const top = node.getBoundingClientRect().top;
+      return () => { scroller.scrollTop += node.getBoundingClientRect().top - top; };
+    }
+
+    function renderBanner(changed) {
+      if (!banner) {
+        banner = el('div', { class: 'banner', 'data-tone': 'critical', role: 'alert', tabindex: '-1', id: BLOCK_ID }, [
+          el('p', { class: 'banner-title', text: BLOCK_TITLE }),
+          el('p', { 'data-block-message': '' }),
+          el('p', { class: 'banner-hint', text: BLOCK_HINT }),
+        ]);
+        host.replaceChildren(banner);
+        host.hidden = false;
+      } else if (changed) {
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+      } else {
+        return;
+      }
+      $('[data-block-message]', banner).textContent = (block.kind === 'prospective' ? 'A prospective' : 'An existing')
+        + ' vendor with this ' + block.fields.join(' and ') + ' is already in Drata.';
+    }
+
+    function showBlock(match) {
+      const changed = !block || block.kind !== match.kind || block.fields.join() !== match.fields.join();
+      block = match;
+      keys.forEach((key) => {
+        const input = inputs[key];
+        const hit = match.fields.indexOf(key) !== -1;
+        if (hit && !input.hasAttribute('aria-invalid')) marked.add(input);
+        if (hit) input.setAttribute('aria-invalid', 'true');
+        else if (marked.has(input)) {
+          input.removeAttribute('aria-invalid');
+          marked.delete(input);
+        }
+        setText(parts[key].error, hit ? 'This ' + key + ' matches ' + matchKind(match.kind) + ' vendor already in Drata.' : '');
+      });
+      const restore = holdPosition();
+      renderBanner(changed);
+      const lostFocus = lockForm();
+      restore();
+      if (lostFocus) banner.focus();
+    }
+
+    function hideBlock(announcement) {
+      if (!block) return;
+      block = null;
+      marked.forEach((input) => input.removeAttribute('aria-invalid'));
+      marked.clear();
+      keys.forEach((key) => setText(parts[key].error, ''));
+      banner = null;
+      const restore = holdPosition();
+      host.replaceChildren();
+      host.hidden = true;
+      unlockForm();
+      restore();
+      if (!announcement) return;
+      live.textContent = announcement;
+      liveTimer = setTimeout(() => { live.textContent = ''; }, LOOKUP_ANNOUNCE_MS);
+    }
+
+    function currentQuery() {
+      const name = inputs.name ? inputs.name.value.trim() : '';
+      const website = inputs.website ? inputs.website.value.trim() : '';
+      const query = {
+        name: name.length >= LOOKUP_NAME_MIN && name.length <= LOOKUP_NAME_MAX ? name : '',
+        website: website.length <= LOOKUP_WEBSITE_MAX ? website : '',
+      };
+      if (!query.name && !query.website) return null;
+      query.key = query.name + '\n' + query.website;
+      return query;
+    }
+
+    async function fetchLookup(query, signal) {
+      const params = new URLSearchParams({ name: query.name, website: query.website });
+      let response;
+      try {
+        response = await fetch('/api/vendor-lookup?' + params.toString(), {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+          signal,
+        });
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        return null;
+      }
+      if (response.status === 429) {
+        const wait = Number(response.headers.get('Retry-After'));
+        backoffUntil = Date.now() + (wait > 0 ? Math.min(wait, LOOKUP_BACKOFF_MAX_S) * 1000 : LOOKUP_BACKOFF_MS);
+        return null;
+      }
+      if (!response.ok) return null;
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+      }
+      if (!data || data.available !== true) return null;
+      if (data.match === null) return { match: null };
+      const match = parseMatch(data.match);
+      return match ? { match } : null;
+    }
+
+    function cancel() {
+      clearTimeout(debounce);
+      clearTimeout(spinner);
+      if (controller) controller.abort();
+      controller = null;
+      inflightKey = null;
+      pending = false;
+      seq += 1;
+    }
+
+    function settle(result, query) {
+      inflightKey = null;
+      controller = null;
+      last = { key: query.key, ok: Boolean(result) };
+      if (!result) {
+        hideBlock();
+        setStatus('unavailable');
+        return;
+      }
+      setStatus('idle');
+      if (result.match) showBlock(result.match);
+      else hideBlock(LOOKUP_CLEAR);
+    }
+
+    async function run() {
+      cancel();
+      const mine = seq;
+      const query = currentQuery();
+      if (!query) {
+        last = null;
+        setStatus('idle');
+        hideBlock(LOOKUP_UNLOCKED);
+        return;
+      }
+      if (last && last.ok && last.key === query.key) {
+        setStatus('idle');
+        return;
+      }
+      if (Date.now() < backoffUntil) {
+        settle(null, query);
+        return;
+      }
+      controller = new AbortController();
+      inflightKey = query.key;
+      spinner = setTimeout(() => setStatus('checking'), LOOKUP_SPINNER_DELAY_MS);
+      let result;
+      try {
+        result = await fetchLookup(query, controller.signal);
+      } catch (error) {
+        return;
+      }
+      if (mine !== seq) return;
+      clearTimeout(spinner);
+      settle(result, query);
+    }
+
+    function onBlur() {
+      const query = currentQuery();
+      const known = inflightKey || (last && last.key) || null;
+      if (!pending && (query ? query.key : null) === known) return;
+      run();
+    }
+
+    keys.forEach((key) => {
+      inputs[key].addEventListener('input', () => {
+        activeKey = key;
+        cancel();
+        pending = true;
+        setStatus('idle');
+        debounce = setTimeout(run, LOOKUP_DEBOUNCE_MS);
+      });
+      inputs[key].addEventListener('blur', () => {
+        activeKey = key;
+        onBlur();
+      });
+    });
+
+    if (currentQuery()) run();
+
+    return {
+      blocked: () => Boolean(block),
+      applyServerBlock(err) {
+        const fieldErrors = err.fieldErrors || {};
+        const flagged = keys.filter((key) => {
+          const wrapper = inputs[key].closest('[data-field-id]');
+          return wrapper && Object.prototype.hasOwnProperty.call(fieldErrors, wrapper.dataset.fieldId);
+        });
+        const match = parseMatch(err.detail && err.detail.match, flagged);
+        if (!match) return false;
+        cancel();
+        setStatus('idle');
+        const query = currentQuery();
+        last = query ? { key: query.key, ok: true } : null;
+        showBlock(match);
+        banner.focus();
+        return true;
+      },
+    };
+  }
+
   function initIntake() {
     const form = $('[data-intake-form]');
     if (!form) return;
@@ -381,6 +696,7 @@
     const button = $('#submit-button');
     const status = $('#submit-status');
     const attempt = { key: null, serialized: null };
+    const lookup = initVendorLookup(form, button);
 
     $$('[data-clear-choice]', form).forEach((clear) => {
       clear.addEventListener('click', () => {
@@ -442,6 +758,12 @@
     function handleError(err) {
       if (err.network || !err.code) return unconfirmed();
       if (err.code === 'VALIDATION_FAILED') return showFieldErrors(err.fieldErrors);
+      if (err.code === 'VENDOR_EXISTS' && lookup.applyServerBlock(err)) {
+        // A definitive rejection: a later identical payload must not replay this outcome under the old key.
+        attempt.key = null;
+        attempt.serialized = null;
+        return;
+      }
       if (err.code === 'FORM_CHANGED') {
         return showProblem('The form changed',
           'Reload the page to review the current fields. What you entered stays visible here until you reload, so copy anything you need first.',
@@ -467,7 +789,7 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (button.disabled) return;
+      if (button.disabled || lookup.blocked()) return;
       clearErrors(form);
       summary.hidden = true;
       if (!window.crypto || typeof window.crypto.randomUUID !== 'function') {

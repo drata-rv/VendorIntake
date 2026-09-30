@@ -10,6 +10,7 @@
 {% set has_help = f.helpText or limited %}
 {% set described = (fid ~ '-help ' if has_help else '') ~ (fid ~ '-note ' if retained else '') ~ (fid ~ '-cur ' if f.type == 'money' else '') ~ fid ~ '-error' %}
 {% set req = 'true' if f.required else 'false' %}
+{% set lookup = 'name' if f.destination.kind == 'native' and f.destination.field == 'name' else ('website' if f.destination.kind == 'native' and f.destination.field == 'url' else '') %}
 {% if f.type in ('boolean', 'multiselect') %}
 <fieldset class="field" data-field-id="{{ f.id }}" data-type="{{ f.type }}" id="{{ fid }}" aria-describedby="{{ described }}"{% if f.type == 'boolean' %} role="radiogroup" aria-required="{{ req }}"{% endif %}>
   <legend class="field-label">{{ f.label }}{% if not f.required %} <span class="optional">(optional)</span>{% endif %}</legend>
@@ -19,11 +20,11 @@
 {% endif %}
   {% if has_help %}<p class="field-help" id="{{ fid }}-help">{{ f.helpText }}{% if limited %} Maximum {{ f.maxLength }} characters.{% endif %}</p>{% endif %}
   {% if f.type == 'text' %}
-  <input class="input" id="{{ fid }}" name="{{ fid }}" type="text" autocomplete="off"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
+  <input class="input" id="{{ fid }}" name="{{ fid }}" type="text" autocomplete="off"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}"{% if lookup %} data-vendor-lookup="{{ lookup }}"{% endif %}>
   {% elif f.type == 'textarea' %}
   <textarea class="textarea" id="{{ fid }}" name="{{ fid }}" rows="5" aria-required="{{ req }}" aria-describedby="{{ described }}">{{ v if v is string else '' }}</textarea>
   {% elif f.type == 'url' %}
-  <input class="input" id="{{ fid }}" name="{{ fid }}" type="url" inputmode="url" autocomplete="off" spellcheck="false"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
+  <input class="input" id="{{ fid }}" name="{{ fid }}" type="url" inputmode="url" autocomplete="off" spellcheck="false"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}"{% if lookup %} data-vendor-lookup="{{ lookup }}"{% endif %}>
   {% elif f.type == 'email_list' %}
   <input class="input" id="{{ fid }}" name="{{ fid }}" type="text" inputmode="email" autocomplete="off" spellcheck="false"{% if v is string %} value="{{ v }}"{% endif %} aria-required="{{ req }}" aria-describedby="{{ described }}">
   {% elif f.type == 'money' %}
@@ -84,6 +85,7 @@
     <p data-summary-extra></p>
   </div>
   <form class="card" id="intake-form" data-intake-form data-form-version="{{ form_version }}"{% if prefill %} data-origin-submission-id="{{ prefill.originSubmissionId }}"{% endif %} novalidate>
+    <div id="vendor-block" data-vendor-block hidden></div>
     {% for f in form.fields %}
     {{ field_block(f, form.currency, values) }}
     {% endfor %}
@@ -91,6 +93,7 @@
       <button type="submit" class="btn btn-primary" id="submit-button"><span class="spinner" aria-hidden="true" hidden></span><span>Create prospective vendor</span></button>
       <span class="muted small" id="submit-status" role="status"></span>
     </div>
+    <div class="visually-hidden" id="vendor-lookup-live" role="status" aria-live="polite" aria-atomic="true"></div>
   </form>
   <p class="muted small">If the outcome is unclear after you submit, check <a href="{{ url_for('routes.history_page') }}">My submissions</a> before trying again.</p>
 </div>

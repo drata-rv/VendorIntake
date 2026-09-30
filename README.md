@@ -9,6 +9,7 @@ Customer-hosted Flask app. Requester submits vendor-intake answers; server maps 
 - Writes: synchronous; administrator-initiated retry only.
 - Custom fields: `TEXT`, `LONG_TEXT`, `URL`, `NUMBER`. `OPTIONS`, `OPTIONS_NUMERIC`, `CURRENCY` raise a setup blocker.
 - Deployment: single host; restart interrupts in-flight requests.
+- Duplicates: a vendor whose name or hostname matches any Drata vendor, in any status, is blocked at intake. `GET /api/vendor-lookup` answers from a 300 s in-memory index (on a cold cache one request scans inline, concurrent lookups answer `UNAVAILABLE` instead of waiting); submit always re-scans Drata and closes the submission as `CANCELLED` / `VENDOR_EXISTS` (HTTP 409) with no write.
 
 ## Layout
 
@@ -17,6 +18,7 @@ Customer-hosted Flask app. Requester submits vendor-intake answers; server maps 
 | `app/drata.py` | HTTP adapter: timeouts, 1 req/s gate, pagination, error normalization |
 | `app/mappings.py` | Field catalog, validation, create/update payloads, marker, read-back compare |
 | `app/submissions.py` | State machine, idempotency, duplicate scan, reconcile, update flow, retention |
+| `app/vendor_index.py` | Vendor index for intake lookup: TTL cache, single-flight refresh, per-user throttle |
 | `app/connection.py` | Credential test/save/disconnect, pinned account |
 | `app/forms.py` | Immutable form versions, publish checks, custom-field drift fingerprint |
 | `app/auth.py` | Argon2id, server-side sessions, CSRF/Origin, login limits |
@@ -33,6 +35,7 @@ Customer-hosted Flask app. Requester submits vendor-intake answers; server maps 
 | `DRATA_LINK_HOSTS` | empty | Comma list of exact hostnames allowed for `_links.self.href`. Empty shows Drata ID only. |
 | `TRUST_PROXY_HOPS` | `1` | Proxy hops for `X-Forwarded-*`. `0` disables. |
 | `MAX_CONTENT_LENGTH` | `131072` | Request body cap, bytes. |
+| `VENDOR_INDEX_TTL` | `300` | Seconds before the lookup index refreshes in the background. Clamped to 1-1800. Entries older than 30 minutes are not served. |
 | `BRIDGE_TEMPLATES_RELOAD` | unset | `1` reloads templates on change. Development only. |
 
 ## Install (single host)
@@ -72,7 +75,7 @@ Create key `Vendor Intake Bridge` with custom scopes. Create-only: Company Setti
 
 ## Operator responsibilities
 
-- Host, HTTPS ingress, patching, time sync, egress to Drata.
+- Host, HTTPS ingress, patching, time sync, egress to Drata. Keep the query string of `GET /api/vendor-lookup` out of proxy access logs; it carries what requesters type.
 - Key file and database backups, stored separately, both required for recovery.
 - Local accounts and temporary-password delivery.
 - Revoke retired Drata keys in Drata Settings. Disconnect does not revoke.

@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, g, jsonify, make_response, redirect, render_template, request, url_for
 
-from . import auth, connection, forms, mappings, submissions
+from . import auth, connection, forms, mappings, submissions, vendor_index
 from .crypto import dec_json
 from .db import audit, connect, get_db, iso, schema_current, settings_row, tx
 from .errors import ApiFail
@@ -162,6 +162,16 @@ def create_submission():
     status, body = submissions.submit(g.user, json_body(), request.headers.get("Idempotency-Key"))
     g.log_fields["submissionId"] = body.get("submissionId")
     return out(body, status)
+
+
+@bp.get("/api/vendor-lookup")
+@auth.login_required
+def vendor_lookup():
+    current_app.extensions["lookup_throttle"].enforce(uid())
+    name, website = vendor_index.parse_query(request.args)
+    result = current_app.extensions["vendor_index"].lookup(name, website)
+    g.log_fields["lookup"] = ("match" if result["match"] else "none") if result["available"] else "unavailable"
+    return out(result)
 
 
 @bp.get("/api/submissions/<sid>")

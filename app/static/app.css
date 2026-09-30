@@ -926,6 +926,59 @@ input[type='radio']:disabled::before {
     font-weight: var(--font-weight-semibold);
 }
 
+.banner-hint {
+    font-size: var(--font-size-100);
+    line-height: var(--line-height-100);
+}
+
+.card > [data-vendor-block][hidden] + * {
+    margin-top: 0;
+}
+
+.lookup-status {
+    display: flex;
+    align-items: center;
+    gap: var(--dimension-md);
+    color: var(--text-neutral-faded);
+    font-size: var(--font-size-100);
+    line-height: var(--line-height-100);
+}
+
+.lookup-status .spinner {
+    --spinner-size: calc(var(--dimension-xl) - var(--dimension-xs));
+}
+
+[data-vendor-locked] .field:not(:has([data-vendor-lookup])) :is(.field-label, .choice) {
+    color: var(--text-neutral-faded);
+}
+
+[data-vendor-locked] :is(.input, .select, .textarea):disabled {
+    opacity: 1;
+    background-color: var(--background-neutral-emphasis-mild);
+    border-color: var(--border-neutral-faded);
+    color: var(--text-neutral-faded);
+    -webkit-text-fill-color: var(--text-neutral-faded);
+}
+
+[data-vendor-locked] .select-wrap:has(> .select:disabled) {
+    color: var(--text-neutral-faded);
+}
+
+[data-vendor-locked] :is(input[type='checkbox'], input[type='radio']):disabled {
+    border-color: var(--border-neutral-initial);
+}
+
+[data-vendor-locked] .btn {
+    --btn-bg-off: var(--background-neutral-emphasis-mild);
+    --btn-fg-off: var(--text-neutral-faded);
+    --btn-ring-off: inset 0 0 0 var(--border-width-sm) var(--border-neutral-initial);
+}
+
+[data-vendor-locked] .btn-tertiary {
+    --btn-bg-off: transparent;
+    --btn-ring-off: none;
+}
+
 .pill {
     display: inline-block;
     min-width: calc(var(--dimension-6x) + var(--border-width-sm) * 2);
