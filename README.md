@@ -33,6 +33,7 @@ Customer-hosted Flask app. Requester submits vendor-intake answers; server maps 
 | `DRATA_LINK_HOSTS` | empty | Comma list of exact hostnames allowed for `_links.self.href`. Empty shows Drata ID only. |
 | `TRUST_PROXY_HOPS` | `1` | Proxy hops for `X-Forwarded-*`. `0` disables. |
 | `MAX_CONTENT_LENGTH` | `131072` | Request body cap, bytes. |
+| `BRIDGE_TEMPLATES_RELOAD` | unset | `1` reloads templates on change. Development only. |
 
 ## Install (single host)
 
