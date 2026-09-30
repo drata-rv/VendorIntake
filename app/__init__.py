@@ -19,6 +19,8 @@ from .errors import ApiFail
 
 LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 NO_SESSION_ENDPOINTS = {"static", "routes.healthz", "routes.readyz"}
+HTTP_MESSAGES = {404: "This page does not exist.", 405: "This action is not allowed on this page.",
+                 413: "The request is larger than the server accepts."}
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; "
        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
@@ -40,6 +42,7 @@ def load_config(env, overrides=None) -> dict:
         "MAX_CONTENT_LENGTH": int(env.get("MAX_CONTENT_LENGTH", "131072")),
         "DRATA_LINK_HOSTS": tuple(h.strip().lower() for h in env.get("DRATA_LINK_HOSTS", "").split(",") if h.strip()),
         "DRATA_MIN_INTERVAL": float(env.get("DRATA_MIN_INTERVAL", "1.0")),
+        "TEMPLATES_AUTO_RELOAD": env.get("BRIDGE_TEMPLATES_RELOAD") == "1",
     }
     cfg.update(overrides or {})
     base = urlsplit(cfg["APP_BASE_URL"])
@@ -171,7 +174,7 @@ def _register_errors(app):
     def http_error(exc):
         code = {413: "PAYLOAD_TOO_LARGE", 404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(exc.code, "HTTP_ERROR")
         g.log_fields["code"] = code
-        return _fail_response(exc.code, code, exc.name)
+        return _fail_response(exc.code, code, HTTP_MESSAGES.get(exc.code, exc.name))
 
     @app.errorhandler(Exception)
     def unhandled(exc):

@@ -64,8 +64,11 @@ _NUMBER_RE = re.compile(r"^-?\d{1,10}(\.\d{1,6})?$")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 
+ACRONYMS = {"CS", "HR"}
+
+
 def humanize(value: str) -> str:
-    return value.replace("_", " ").capitalize()
+    return value if value in ACRONYMS else value.replace("_", " ").capitalize()
 
 
 def starter_form() -> dict:

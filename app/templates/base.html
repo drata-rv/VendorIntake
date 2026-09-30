@@ -1,5 +1,47 @@
 <!doctype html>
-<html lang="en">
+{% macro d_mark() -%}
+<svg class="shell-mark" fill="none" height="20" viewBox="0 0 27 20" width="27" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="m6.8554 19.9979h8.0966c6.6279 0 11.4116-3.9251 11.4116-9.9969 0-6.07173-4.7847-10.001-11.4116-10.001h-8.0966v.04408c.04329-.04408 5.1592 4.80882 5.1592 4.80882h2.7079c3.6915 0 6.5776 1.48436 6.5776 5.1492 0 3.6647-2.8861 5.1491-6.5776 5.1491h-2.7109l-5.15721 4.8488z"></path><path d="m6.84535 5.30841c1.26297 2.08503 3.21255 3.63809 5.49565 4.38013l1.3497.43796-1.3497.4379c-2.2831.741-4.23268 2.2951-5.49565 4.3801-1.26297-2.085-3.21252-3.6381-5.49566-4.3801l-1.34969-.4379 1.34969-.43796c2.28314-.74099 4.23269-2.2951 5.49566-4.38013z"></path></g></svg>
+{%- endmacro %}
+
+{% macro icon(name) -%}
+<svg class="shell-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+{%- if name == 'intake' -%}
+<path fill="currentColor" d="m8.625 2c0-.34518-.27982-.625-.625-.625s-.625.27982-.625.625v5.33496h-5.375c-.34518 0-.625.27982-.625.625s.27982.625.625.625h5.375v5.41504c0 .3452.27982.625.625.625s.625-.2798.625-.625v-5.41504h5.375c.3452 0 .625-.27982.625-.625s-.2798-.625-.625-.625h-5.375z"></path>
+{%- elif name == 'mine' -%}
+<path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="m3.625 2.25c-.09946 0-.19484.03951-.26517.10983-.07032.07033-.10983.16571-.10983.26517v10.75c0 .0995.03951.1948.10983.2652.07033.0703.16571.1098.26517.1098h8.75c.0995 0 .1948-.0395.2652-.1098.0703-.0704.1098-.1657.1098-.2652v-7.375h-3.25c-.27614 0-.5-.22386-.5-.5v-3.25zm10.375 11.125v-8.375c0-.16576-.0658-.32473-.1831-.44194l-3.375-3.375c-.1172-.11721-.2761-.18306-.4419-.18306h-6.375c-.43098 0-.8443.1712-1.14905.47595s-.47595.71807-.47595 1.14905v10.75c0 .431.1712.8443.47595 1.149.30475.3048.71807.476 1.14905.476h8.75c.431 0 .8443-.1712 1.149-.476.3048-.3047.476-.718.476-1.149z"></path>
+{%- elif name == 'all' -%}
+<path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="m2.625 8.625v-3.625h3.75v3.625zm5 0v-3.625h2.75v3.625zm2.75 1.25h-2.75v3.5h2.75zm1.25 3.5v-3.5h1.75v3.125c0 .2071-.1679.375-.375.375zm-8.625 1.25c-.89746 0-1.625-.7275-1.625-1.625v-10c0-.89746.72754-1.625 1.625-1.625h10c.8975 0 1.625.72754 1.625 1.625v10c0 .8975-.7275 1.625-1.625 1.625zm8.625-6v-3.625h1.75v3.625zm-9 1.25h3.75v3.5h-3.375c-.20711 0-.375-.1679-.375-.375z"></path>
+{%- elif name == 'form' -%}
+<path fill="currentColor" d="m7.5979.999023-.00185.000006c-.32349.000956-.63916.099591-.90566.282981-.26638.18332-.47122.44279-.5877.74444l-.34115.88063-1.06947.607-.94323-.14388-.01018-.00147c-.31554-.04283-.63669.00911-.92264.14923-.28594.14011-.52378.36207-.68329.63767l-.00171.00298-.39069.68372c-.16309.27913-.23816.60102-.21532.92356.02293.32398.14357.63339.34598.8874l.00228.00284.5972.74053v1.21134l-.58148.74079c-.20144.25362-.32149.56225-.34436.88531-.02284.3226.05223.6445.21532.9236l.39069.6837.00171.003c.15951.2756.39735.4976.68329.6377.28595.1401.6071.192.92263.1492l.01019-.0015.9412-.1435 1.05114.6047.34175.8822c.11647.3017.3214.5615.58784.7448.2665.1834.58217.2821.90566.283h.82767c.3235-.0009.63917-.0996.90566-.283.26642-.1833.47127-.4428.58775-.7445l.34187-.8825 1.0511-.6047.9412.1435.0102.0015c.3155.0428.6367-.0091.9226-.1492.286-.1401.5238-.3621.6833-.6377l.0017-.003.3907-.6836c.1631-.2792.2382-.6011.2153-.9237-.0229-.32393-.1435-.63334-.3459-.88734l-.5995-.74338v-1.21133l.5814-.74079c.2015-.25362.3215-.56225.3444-.88537.0228-.32254-.0522-.64443-.2153-.92356l-.3924-.6867c-.1595-.2756-.3974-.49756-.6833-.63767-.286-.14012-.6071-.19206-.9226-.14923l-.0102.00147-.9412.14357-1.0511-.60477-.34179-.88218c-.11647-.3017-.32143-.56147-.58785-.74481-.26649-.18339-.58216-.282025-.90566-.282984zm.00115 1.250007h.80206c.07145.00035.14115.0222.20002.06271.05907.04065.10448.09818.13029.16507l.42209 1.0896c.05161.13321.14729.24472.27112.31597l1.43217.82397c.1228.07064.2659.09748.4059.07612l1.1511-.1756c.0687-.00856.1385.00309.2007.03357.063.03087.1154.07966.1508.14023l.0006.0011.3907.68366.0038.00667c.0365.06205.0533.13371.0482.20551-.005.07181-.0318.14038-.0766.19668l-.0029.00359-.7161.91226c-.0864.11008-.1333.24597-.1333.38591v1.64795c0 .14276.0488.28122.1385.39234l.7334.90936.0008.0011c.0444.0561.0708.1243.0759.1956.005.0718-.0118.1435-.0483.2056l-.3945.6903-.0006.0011c-.0354.0606-.0878.1093-.1508.1402-.0622.0305-.132.0421-.2006.0336l-1.1512-.1756c-.14-.0214-.2831.0055-.4059.0761l-1.43215.824c-.12383.0712-.21951.1827-.27112.3159l-.4218 1.0889c-.02582.0669-.07152.1252-.13058.1658-.05886.0405-.12856.0624-.2.0627h-.82173c-.07144-.0003-.14113-.0222-.2-.0627-.05906-.0406-.10447-.0982-.13028-.1651l-.4221-1.0896c-.0516-.1332-.14728-.2447-.27111-.3159l-1.43215-.824c-.12277-.0706-.2659-.0975-.40593-.0761l-1.15115.1756c-.06869.0085-.13842-.0031-.20064-.0336-.06298-.0309-.11544-.0796-.15078-.1402l-.00066-.0011-.39065-.6837-.00386-.0066c-.03648-.0621-.05329-.1338-.04821-.2056.00509-.0718.03182-.1404.07668-.1967l.00284-.0035.71608-.9123c.0864-.11008.13337-.24597.13337-.3859v-1.64795c0-.14276-.04888-.28122-.1385-.39235l-.73426-.91048c-.04434-.05609-.07078-.12426-.07583-.19561-.00508-.0718.01173-.14346.04821-.20551l.00386-.00667.39131-.68478c.03534-.06056.0878-.10934.15078-.14021.06222-.03048.13195-.04213.20064-.03357l1.15115.1756c.13879.02117.28066-.005.40275-.0743l1.45177-.82398c.12533-.07113.22223-.1834.27429-.31778l.4218-1.08882c.02581-.06689.07152-.1252.13058-.16585.05888-.04051.12858-.06236.20003-.06271zm-1.84897 5.75097c0 .44501.13196.88002.3792 1.25003.24723.37002.59863.6584 1.00976.82867.41114.1703.86354.2149 1.3.1281.43645-.0868.83736-.30114 1.15203-.61581s.52893-.71558.61583-1.15203c.0868-.43646.0422-.88886-.1281-1.3-.17029-.41113-.45868-.76253-.82869-1.00976-.37001-.24724-.80502-.3792-1.25003-.3792-.59674 0-1.16903.23706-1.59099.65901-.42195.42196-.65901.99426-.65901 1.59099z"></path>
+{%- elif name == 'connection' -%}
+<path fill="currentColor" d="m8.42543 1.68589c.16686-.20515.44512-.28282.69434-.19434.24922.08856.41601.32437.41601.58887v3.92871h3.47262c.2411 0 .4609.13874.5645.35644.1035.21759.0727.47503-.0791.66211l-5.91993 7.28612c-.16684.2052-.44507.2838-.69434.1953-.24918-.0886-.41503-.3253-.41503-.5898v-3.92775h-3.47364c-.24101 0-.46078-.13889-.56445-.35645-.1036-.21765-.07284-.47597.0791-.66308zm-4.12207 7.05566h2.78614c.34498.00023.625.27996.625.625v2.79195l3.9814-4.89937h-2.78512c-.34513 0-.62492-.27989-.625-.625v-2.79395z"></path>
+{%- elif name == 'users' -%}
+<path fill="currentColor" d="m9.82568 3.13589c.05686-.00717.11505-.01089.17442-.01089.7594 0 1.375.61561 1.375 1.375s-.6156 1.375-1.375 1.375c-.05937 0-.11756-.00372-.17442-.01089-.34247-.04314-.65507.19951-.69822.54198s.1995.65507.54197.69822c.10856.01368.21893.02069.33067.02069 1.4497 0 2.625-1.17525 2.625-2.625s-1.1753-2.625-2.625-2.625c-.11174 0-.22211.00701-.33067.02069-.34247.04315-.58512.35575-.54197.69822s.35575.58512.69822.54198zm1.64942 5.07903c-.3304-.09979-.6792.08718-.779.41761-.0998.33044.0872.67921.4176.77901 1.49.44998 2.5709 1.77436 2.6358 3.34176h-.9995c-.3451 0-.625.2798-.625.625s.2799.625.625.625h1.6276c.3452 0 .625-.2798.625-.625v-.4755c0-2.2144-1.4931-4.07347-3.5275-4.68788zm-5.4748-.21663c-2.74887 0-5.001277 2.18271-5.001277 4.90451v.4755c0 .3451.279827.625.624997.625h8.75258c.3452 0 .625-.2799.625-.625v-.4755c0-2.7218-2.25242-4.90451-5.0013-4.90451zm-1.3753-3.49829c0-.75939.61561-1.375 1.375-1.375s1.375.61561 1.375 1.375-.61561 1.375-1.375 1.375-1.375-.61561-1.375-1.375zm1.375-2.625c-1.44975 0-2.625 1.17525-2.625 2.625s1.17525 2.625 2.625 2.625 2.625-1.17525 2.625-2.625-1.17525-2.625-2.625-2.625z"></path>
+{%- elif name == 'sign-out' -%}
+<path fill="currentColor" d="m8.625 1.66333c0-.34518-.27982-.625-.625-.625s-.625.27982-.625.625v5.39424c0 .34518.27982.625.625.625s.625-.27982.625-.625zm-4.01191 2.0888c.32748-.25363.38734-.72472.13371-1.0522-.25364-.32748-.72472-.38734-1.0522-.1337-1.14905.88995-1.99034 2.11431-2.40535 3.50286-.415023 1.38861-.382725 2.87124.09232 4.24071.47503 1.3693 1.36873 2.5564 2.55532 3.3962 1.18649.8397 2.60692 1.2907 4.06311 1.2907 1.45618 0 2.8766-.451 4.0631-1.2907 1.1866-.8398 2.0803-2.0269 2.5553-3.3962.4751-1.36947.5074-2.8521.0923-4.24071-.415-1.38855-1.2562-2.61291-2.4053-3.50286-.3275-.25364-.7986-.19378-1.0522.1337s-.1938.79857.1337 1.0522c.9026.69906 1.5618 1.65944 1.8867 2.7465.3248 1.087.2996 2.24738-.0723 3.31954-.372 1.07223-1.0724 2.00363-2.0047 2.66343-.9324.6599-2.04993 1.0151-3.1966 1.0151s-2.26417-.3552-3.19657-1.0151c-.93231-.6598-1.63275-1.5912-2.0047-2.66343-.37193-1.07216-.39718-2.23254-.07229-3.31954.3249-1.08706.98407-2.04744 1.88665-2.7465z"></path>
+{%- elif name == 'hide-nav' -%}
+<path fill="currentColor" d="m13.9199 11.4736c.3451.0002.625.2799.625.625-.0002.3449-.2801.6249-.625.625h-6.37498c-.34504 0-.62477-.28-.625-.625 0-.3451.27982-.625.625-.625zm-9.54978-6.6484c.24388-.24373.6397-.24341.88379 0 .24407.24407.24407.64068 0 .88476l-2.29004 2.28906 2.29004 2.29098c.24407.2441.24407.6398 0 .8838-.24409.244-.63976.2441-.88379 0l-2.73242-2.73239c-.11676-.11709-.18255-.27605-.18262-.44141.00007-.16559.06556-.32525.18262-.44238zm9.54978 2.55c.3451.00015.625.27992.625.625s-.2799.62485-.625.625h-6.37498c-.34518 0-.625-.27982-.625-.625s.27982-.625.625-.625zm0-4.09863c.3449.00015.6248.2801.625.625 0 .34508-.2799.62485-.625.625h-6.37498c-.34518 0-.625-.27982-.625-.625.00023-.34499.27996-.625.625-.625z"></path>
+{%- elif name == 'light' -%}
+<path fill="currentColor" d="m8.00018 1.00049c-3.86582 0-6.99969 3.13387-6.99969 6.99969s3.13387 6.99972 6.99969 6.99972 6.99972-3.1339 6.99972-6.99972-3.1339-6.99969-6.99972-6.99969zm-5.74969 6.99969c0-3.17547 2.57422-5.74969 5.74969-5.74969 3.17542 0 5.74972 2.57422 5.74972 5.74969 0 3.17552-2.5743 5.74972-5.74972 5.74972-3.17547 0-5.74969-2.5742-5.74969-5.74972zm6.37451-4.37518c0-.34518-.27982-.625-.625-.625s-.625.27982-.625.625v.625c0 .34518.27982.625.625.625s.625-.27982.625-.625zm0 8.125c0-.3452-.27982-.625-.625-.625s-.625.2798-.625.625v.625c0 .3452.27982.625.625.625s.625-.2798.625-.625zm-5.625-3.75c0-.34518.27982-.625.625-.625h.625c.34518 0 .625.27982.625.625s-.27982.625-.625.625h-.625c-.34518 0-.625-.27982-.625-.625zm8.75-.625c-.3452 0-.625.27982-.625.625s.2798.625.625.625h.625c.3452 0 .625-.27982.625-.625s-.2798-.625-.625-.625zm-7.28551-2.91045c.24408-.24408.63981-.24408.88388 0l.44195.44194c.24407.24408.24407.63981 0 .88389-.24408.24408-.63981.24408-.88389 0l-.44194-.44194c-.24408-.24408-.24408-.63981 0-.88389zm7.07111 6.18705-.442-.4419c-.2441-.24411-.6398-.24411-.8839 0-.24405.2441-.24405.6398 0 .8839l.442.4419c.2441.2441.6398.2441.8839 0 .244-.2441.244-.6398 0-.8839zm-7.07111.8838c-.24408-.244-.24408-.6398 0-.8838l.44194-.442c.24408-.24406.63981-.24406.88389 0 .24407.2441.24407.6398 0 .8839l-.44195.4419c-.24407.2441-.6398.2441-.88388 0zm5.74521-6.62895c-.24405.24407-.24405.6398 0 .88388.2441.24408.6398.24408.8839 0l.442-.44194c.244-.24408.244-.63981 0-.88388-.2441-.24408-.6398-.24408-.8839 0zm.0403 3.09355c0 1.24264-1.00736 2.25-2.25 2.25s-2.25-1.00736-2.25-2.25 1.00736-2.25 2.25-2.25 2.25 1.00736 2.25 2.25z"></path>
+{%- elif name == 'dark' -%}
+<path fill="currentColor" d="m8.00018 1.00049c-3.86582 0-6.99969 3.13387-6.99969 6.99969s3.13387 6.99972 6.99969 6.99972 6.99972-3.1339 6.99972-6.99972-3.1339-6.99969-6.99972-6.99969zm-5.74969 6.99969c0-3.17547 2.57422-5.74969 5.74969-5.74969 3.17542 0 5.74972 2.57422 5.74972 5.74969 0 3.17552-2.5743 5.74972-5.74972 5.74972-3.17547 0-5.74969-2.5742-5.74969-5.74972zm5.75027-.0187c0-1.35816 1.101-2.45916 2.45914-2.45916.2503 0 .4415-.3009.258-.47112-.713-.66145-1.66787-1.06585-2.71714-1.06585-2.207 0-3.99612 1.78913-3.99612 3.99613 0 2.20702 1.78912 3.99612 3.99612 3.99612 1.04927 0 2.00414-.4044 2.71714-1.0659.1835-.1702-.0077-.4711-.258-.4711-1.35814 0-2.45914-1.10097-2.45914-2.45912z"></path>
+{%- elif name == 'system' -%}
+<path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="m3.02564 2.5449c.2985-.2985.7024-.4437 1.1299-.4437h7.66416c.8795 0 1.5924.713 1.5924 1.5925v5.1273l1.334 3.1124c.0752.1756.114.3645.114.5555 0 .7787-.6312 1.4099-1.4099 1.4099h-10.90006c-.7787 0-1.41-.6312-1.41-1.4099 0-.191.0388-.3799.114-.5555l1.3278-3.098v-5.1606c0-.4275.1452-.8314.4437-1.1299zm.7813 5.8038h8.38026v-4.655c0-.203-.1646-.3675-.3675-.3675h-7.66416c-.1491 0-.2258.047-.2637.0849s-.0849.1146-.0849.2637z"></path>
+{%- elif name == 'check' -%}
+<path fill="currentColor" d="m14.7702 2.1408c.2674.21825.3073.61196.089.87939l-8.2221 10.07501c-.58034.7111-1.63408.8008-2.32624.1979l-3.09634-2.6968c-.260291-.2267-.287518-.62148-.06081-.88177.2267-.26029.6215-.28752.88179-.06081l3.09634 2.69678c.15973.1392.4029.1185.53682-.0456l8.22214-10.07505c.2182-.26742.612-.30729.8794-.08905z"></path>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% macro nav_item(href, label, glyph, current) -%}
+<li><a class="shell-nav-item" href="{{ href }}" data-tooltip="{{ label }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span class="shell-nav-label">{{ label }}</span></a></li>
+{%- endmacro %}
+
+{% set stage = layout == 'interstitial' %}
+{% set notice = stage and stage_kind != 'panel' %}
+{% set has_nav = current_user and not stage and not current_user.must_change_password %}
+{% set home = url_for('routes.index') if current_user else url_for('routes.login_get') %}
+<html lang="en"{% if has_nav %} data-nav="expanded"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,62 +50,111 @@
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='cosmos-tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='shell.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='shell.js') }}" defer></script>
 </head>
-<body>
+<body class="{{ 'shell-interstitial' if stage else 'shell' }}"{% if notice %} data-theme="light"{% endif %}>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="app-header">
-    {% set home = url_for('routes.index') if current_user else url_for('routes.login_get') %}
-    <a class="app-logo" href="{{ home }}" aria-label="Vendor intake bridge home">
-      <svg fill="none" height="20" viewBox="0 0 27 20" width="27" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g><path d="m6.8554 19.9979h8.0966c6.6279 0 11.4116-3.9251 11.4116-9.9969 0-6.07173-4.7847-10.001-11.4116-10.001h-8.0966v.04408c.04329-.04408 5.1592 4.80882 5.1592 4.80882h2.7079c3.6915 0 6.5776 1.48436 6.5776 5.1492 0 3.6647-2.8861 5.1491-6.5776 5.1491h-2.7109l-5.15721 4.8488z"></path><path d="m6.84535 5.30841c1.26297 2.08503 3.21255 3.63809 5.49565 4.38013l1.3497.43796-1.3497.4379c-2.2831.741-4.23268 2.2951-5.49565 4.3801-1.26297-2.085-3.21252-3.6381-5.49566-4.3801l-1.34969-.4379 1.34969-.43796c2.28314-.74099 4.23269-2.2951 5.49566-4.38013z"></path></g></svg>
-    </a>
-    <div class="app-header-brand">
-      <a class="brand-name" href="{{ home }}">Vendor intake bridge</a>
-      <span class="tag" data-tone="primary">Customer-managed</span>
-    </div>
-    {% if tenant %}
-    <p class="app-header-tenant"><span class="visually-hidden">Connected Drata tenant: </span>{{ tenant.name or 'Unnamed tenant' }}{% if tenant.domain %} <span class="mono">{{ tenant.domain }}</span>{% endif %}</p>
-    {% endif %}
-    <div class="app-header-tools">
-      <button type="button" class="btn btn-tertiary btn-sm" data-theme-toggle aria-pressed="false">Dark theme</button>
-      {% if current_user %}
-      <span class="app-user">{{ current_user.email }} <span class="tag">{{ 'Administrator' if current_user.role == 'ADMIN' else 'Requester' }}</span></span>
-      <form method="post" action="{{ url_for('routes.logout') }}" data-logout-form>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-secondary btn-sm">Sign out</button>
-      </form>
-      {% endif %}
-    </div>
-  </header>
 
-  {% if current_user and layout != 'interstitial' and not current_user.must_change_password %}
-  {% set admin = current_user.role == 'ADMIN' %}
-  {% set mine = request.args.get('mine') %}
-  <nav class="app-nav" aria-label="Main">
-    <ul>
-      <li><a href="{{ url_for('routes.intake') }}"{% if nav == 'routes.intake' %} aria-current="page"{% endif %}>Intake</a></li>
-      <li><a href="{{ url_for('routes.history_page') }}{{ '?mine=1' if admin else '' }}"{% if nav in ('routes.history_page', 'routes.result_page') and (not admin or mine) %} aria-current="page"{% endif %}>My submissions</a></li>
-      {% if admin %}
-      <li><a href="{{ url_for('routes.history_page') }}"{% if nav in ('routes.history_page', 'routes.submission_page') and not mine %} aria-current="page"{% endif %}>Submissions</a></li>
-      <li><a href="{{ url_for('routes.form_page') }}"{% if nav == 'routes.form_page' %} aria-current="page"{% endif %}>Form</a></li>
-      <li><a href="{{ url_for('routes.connection_page') }}"{% if nav == 'routes.connection_page' %} aria-current="page"{% endif %}>Connection</a></li>
-      <li><a href="{{ url_for('routes.users_page') }}"{% if nav == 'routes.users_page' %} aria-current="page"{% endif %}>Users</a></li>
+  {% if not stage %}
+  <header class="shell-header">
+    <div class="shell-logo">
+      <div class="shell-logo-wrap">
+        {% if has_nav %}
+        <button type="button" class="shell-logo-button" data-nav-toggle data-nav-dynamic aria-controls="shell-nav" aria-expanded="false" aria-label="Expand navigation">
+          <span class="shell-logo-mark">{{ d_mark() }}</span>
+          <span class="shell-logo-swap"><svg class="shell-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="m13.9194 11.4736c.3452 0 .625.2799.625.625-.0002.345-.28.625-.625.625h-6.37501c-.34503 0-.62478-.28-.625-.625 0-.3451.27983-.625.625-.625zm-12.28126-6.6484c.2441-.24374.6408-.24397.88476 0l2.73145 2.73242c.11711.11714.18352.27675.18359.44238-.00007.1655-.06666.32429-.18359.44141l-2.73145 2.73239c-.24406.2441-.64068.244-.88476 0-.24378-.244-.24373-.6397 0-.8838l2.29004-2.29098-2.29004-2.28906c-.24408-.24408-.24408-.64069 0-.88476zm12.28126 2.55c.3452 0 .625.27982.625.625s-.2798.625-.625.625h-6.37501c-.34517-.00001-.625-.27983-.625-.625s.27983-.62499.625-.625zm0-4.09863c.345 0 .6248.28001.625.625 0 .34518-.2798.625-.625.625h-6.37501c-.34517-.00002-.625-.27983-.625-.625.00022-.34498.27997-.62499.625-.625z"></path></svg></span>
+        </button>
+        <a class="shell-logo-link" href="{{ home }}" aria-label="Home">{{ d_mark() }}</a>
+        {% else %}
+        <span class="shell-logo-static">{{ d_mark() }}</span>
+        {% endif %}
+      </div>
+      {% if has_nav %}
+      <button type="button" class="shell-icon-button shell-collapse" data-nav-toggle aria-controls="shell-nav" aria-expanded="true" aria-label="Collapse navigation">{{ icon('hide-nav') }}</button>
       {% endif %}
-    </ul>
-  </nav>
+    </div>
+
+    {% if current_user %}
+    {% set local = (current_user.email or '').split('@')[0] %}
+    {% set parts = local.replace('_', '.').replace('-', '.').split('.') | select | list %}
+    {% set initials = ((parts[0][0] ~ parts[1][0]) if parts | length > 1 else local[:2]) | upper %}
+    <div class="shell-header-end">
+      <div class="shell-user">
+        <button type="button" class="shell-avatar" data-user-toggle aria-controls="user-menu" aria-expanded="false" aria-label="Account menu"><span aria-hidden="true">{{ initials or 'U' }}</span></button>
+        <div class="shell-menu" id="user-menu" hidden>
+          <div class="shell-menu-head">
+            <p class="shell-menu-name">{{ current_user.email }}</p>
+            <p class="shell-menu-role">{{ 'Administrator' if current_user.role == 'ADMIN' else 'Requester' }}</p>
+          </div>
+          {% if not current_user.must_change_password and nav != 'routes.password_page' %}
+          <a class="shell-menu-item shell-menu-plain" href="{{ url_for('routes.password_page') }}"><span>Change password</span></a>
+          {% endif %}
+          <div class="shell-menu-divider"></div>
+          <div class="shell-menu-group" role="group" aria-labelledby="theme-group-label">
+            <p class="shell-menu-head" id="theme-group-label">Appearance</p>
+            <button type="button" class="shell-menu-item" data-theme-toggle="light" aria-pressed="false">{{ icon('light') }}<span>Light</span><span class="shell-menu-check">{{ icon('check') }}</span></button>
+            <button type="button" class="shell-menu-item" data-theme-toggle="dark" aria-pressed="false">{{ icon('dark') }}<span>Dark</span><span class="shell-menu-check">{{ icon('check') }}</span></button>
+            <button type="button" class="shell-menu-item" data-theme-toggle="system" aria-pressed="false">{{ icon('system') }}<span>System</span><span class="shell-menu-check">{{ icon('check') }}</span></button>
+          </div>
+          <div class="shell-menu-divider"></div>
+          <form method="post" action="{{ url_for('routes.logout') }}" data-logout-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="shell-menu-item shell-menu-signout">{{ icon('sign-out') }}<span>Sign out</span></button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </header>
   {% endif %}
 
-  <main id="main" class="{{ 'interstitial' if layout == 'interstitial' else 'app-main' }}" tabindex="-1">
-    <div class="{% block page_class %}page page-centered{% endblock %}">
-      <div class="page-header">
-        <h1>{% block heading %}{% endblock %}</h1>
-        {% block actions %}{% endblock %}
-      </div>
-      {% block content %}{% endblock %}
-    </div>
-  </main>
+  <div class="{{ 'shell-stage-wrap' if stage else 'shell-body' }}">
+    {% if has_nav %}
+    {% set admin = current_user.role == 'ADMIN' %}
+    {% set mine = request.args.get('mine') %}
+    <div class="shell-scrim" data-nav-scrim hidden></div>
+    <nav class="shell-nav" id="shell-nav" aria-label="Main">
+      <ul class="shell-nav-group">
+        {{ nav_item(url_for('routes.intake'), 'Intake', 'intake', nav == 'routes.intake') }}
+        {{ nav_item(url_for('routes.history_page') ~ ('?mine=1' if admin else ''), 'My submissions', 'mine', nav == 'routes.result_page' or (nav == 'routes.history_page' and (not admin or mine))) }}
+      </ul>
+      {% if admin %}
+      <ul class="shell-nav-group">
+        {{ nav_item(url_for('routes.history_page'), 'Submissions', 'all', nav == 'routes.submission_page' or (nav == 'routes.history_page' and not mine)) }}
+        {{ nav_item(url_for('routes.form_page'), 'Form', 'form', nav == 'routes.form_page') }}
+        {{ nav_item(url_for('routes.connection_page'), 'Connection', 'connection', nav == 'routes.connection_page') }}
+        {{ nav_item(url_for('routes.users_page'), 'Users', 'users', nav == 'routes.users_page') }}
+      </ul>
+      {% endif %}
+    </nav>
+    {% endif %}
 
-  <footer class="app-footer">This application is operated by your organization. It is not a Drata product.</footer>
+    <main id="main" class="{{ 'shell-stage' if stage else 'shell-panel' }}"{% if stage %} data-stage="{{ 'notice' if notice else 'panel' }}"{% endif %} tabindex="-1">
+      {% if stage %}
+      <div class="shell-stage-inner">
+        <div class="shell-stage-logo">{{ d_mark() }}</div>
+        <div class="shell-stage-body">
+          <h1>{{ self.heading() }}</h1>
+          {{ self.content() }}
+        </div>
+      </div>
+      {% else %}
+      <header class="shell-band">
+        <div class="shell-band-inner{{ ' is-full' if 'page-full' in self.page_class() else '' }}">
+          <h1>{% block heading %}{% endblock %}</h1>
+          <div class="shell-band-actions">{% block actions %}{% endblock %}</div>
+        </div>
+      </header>
+      <div class="shell-content">
+        <div class="{% block page_class %}page page-centered{% endblock %}">
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+      {% endif %}
+    </main>
+  </div>
 
   {% if current_user %}
   <dialog class="modal" id="reauth-dialog" aria-labelledby="reauth-title">

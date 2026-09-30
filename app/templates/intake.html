@@ -32,10 +32,12 @@
     <span class="input-addon" id="{{ fid }}-cur"><span class="visually-hidden">Currency </span>{{ currency }}</span>
   </div>
   {% elif f.type == 'select' %}
-  <select class="select" id="{{ fid }}" name="{{ fid }}" aria-required="{{ req }}" aria-describedby="{{ described }}">
-    <option value="">Select an option</option>
-    {% for o in f.options %}<option value="{{ o.value }}"{% if v == o.value %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
-  </select>
+  <span class="select-wrap">
+    <select class="select" id="{{ fid }}" name="{{ fid }}" aria-required="{{ req }}" aria-describedby="{{ described }}">
+      <option value="">Select an option</option>
+      {% for o in f.options %}<option value="{{ o.value }}"{% if v == o.value %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+  </span>
   {% elif f.type == 'boolean' %}
   <div class="choice-row">
     <label class="choice"><input type="radio" name="{{ fid }}" value="true" id="{{ fid }}-yes"{% if v is sameas true %} checked{% endif %}> Yes</label>

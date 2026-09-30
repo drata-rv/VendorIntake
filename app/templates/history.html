@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% from "_macros.html" import pill, when, plural %}
 {% set admin = current_user.role == 'ADMIN' %}
-{% block title %}{{ 'Submissions' if admin else 'My Submissions' }}{% endblock %}
+{% set own_view = not admin or request.args.get('mine') %}
+{% block title %}{{ 'My Submissions' if own_view else 'Submissions' }}{% endblock %}
 {% block page_class %}page page-full{% endblock %}
-{% block heading %}{{ 'Submissions' if admin else 'My Submissions' }}{% endblock %}
+{% block heading %}{{ 'My Submissions' if own_view else 'Submissions' }}{% endblock %}
 {% block actions %}
 <div class="page-header-actions">
   <a class="btn btn-primary" href="{{ url_for('routes.intake') }}">New submission</a>
@@ -14,10 +15,12 @@
 <form class="row card filter-row" method="get" action="{{ url_for('routes.history_page') }}" data-history-filter>
   <div class="field">
     <label class="field-label" for="state-filter">Status</label>
-    <select class="select" id="state-filter" name="state">
-      <option value="">All statuses</option>
-      {% for s in states %}<option value="{{ s }}"{% if s == filter_state %} selected{% endif %}>{{ s|replace('_', ' ')|capitalize }}</option>{% endfor %}
-    </select>
+    <span class="select-wrap">
+      <select class="select" id="state-filter" name="state">
+        <option value="">All statuses</option>
+        {% for s in states %}<option value="{{ s }}"{% if s == filter_state %} selected{% endif %}>{{ s|replace('_', ' ')|capitalize }}</option>{% endfor %}
+      </select>
+    </span>
   </div>
   <label class="choice"><input type="checkbox" name="mine" value="1" data-only-mine{% if request.args.get('mine') %} checked{% endif %}> Only my submissions</label>
   <button type="submit" class="btn btn-secondary">Apply filter</button>
@@ -27,7 +30,7 @@
 <div class="table-wrap">
   {% if rows %}
   <table class="table table-stack" id="history-table">
-    <caption class="visually-hidden">{{ 'All submissions' if admin else 'Your submissions' }}, newest first</caption>
+    <caption class="visually-hidden">{{ 'Your submissions' if own_view else 'All submissions' }}, newest first</caption>
     <thead>
       <tr>
         <th scope="col">Local reference</th>
@@ -40,7 +43,7 @@
     <tbody>
       {% for row in rows %}
       <tr{% if admin %} data-mine="{{ 'true' if row.requesterEmail == current_user.email else 'false' }}"{% endif %}>
-        <td data-label="Local reference">
+        <td class="wrap" data-label="Local reference">
           <span class="mono" title="{{ row.id }}">{{ row.id[:8] }}</span>
           {% if row.vendorName %}<span class="sub">{{ row.vendorName }}</span>{% endif %}
           {% if admin and row.requesterEmail %}<span class="sub">{{ row.requesterEmail }}</span>{% endif %}

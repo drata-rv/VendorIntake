@@ -208,21 +208,34 @@
   }
 
   function initTheme() {
-    const button = $('[data-theme-toggle]');
-    if (!button) return;
+    const buttons = $$('[data-theme-toggle]');
+    if (!buttons.length) return;
     const root = document.documentElement;
-    const sync = () => button.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'dark'));
-    sync();
-    button.addEventListener('click', () => {
-      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      root.setAttribute('data-theme', next);
+    const dark = window.matchMedia('(prefers-color-scheme: dark)');
+    let mode = 'system';
+    try {
+      const stored = window.localStorage.getItem('bridge-theme');
+      if (stored === 'light' || stored === 'dark') mode = stored;
+    } catch (error) {
+      mode = 'system';
+    }
+    const apply = () => {
+      root.setAttribute('data-theme', mode === 'system' ? (dark.matches ? 'dark' : 'light') : mode);
+      buttons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.themeToggle === mode)));
+    };
+    buttons.forEach((button) => button.addEventListener('click', () => {
+      mode = button.dataset.themeToggle;
       try {
-        window.localStorage.setItem('bridge-theme', next);
+        window.localStorage.setItem('bridge-theme', mode);
       } catch (error) {
         button.dataset.unsaved = 'true';
       }
-      sync();
+      apply();
+    }));
+    dark.addEventListener('change', () => {
+      if (mode === 'system') apply();
     });
+    apply();
   }
 
   function localizeTimes() {
@@ -890,7 +903,7 @@
 
     function labelled(id, text, control, help) {
       const helpId = help ? id + '-help' : null;
-      if (helpId) control.setAttribute('aria-describedby', helpId);
+      if (helpId) (control.classList.contains('select-wrap') ? control.firstElementChild : control).setAttribute('aria-describedby', helpId);
       return el('div', { class: 'field' }, [
         el('label', { class: 'field-label', for: id, text }),
         help ? el('p', { class: 'field-help', id: helpId, text: help }) : null,
@@ -909,7 +922,7 @@
       const node = el('select', { class: 'select', id }, choices.map((choice) => el('option', { value: choice.value, text: choice.label, disabled: choice.disabled })));
       node.value = value;
       node.addEventListener('change', () => onChange(node.value));
-      return node;
+      return el('span', { class: 'select-wrap' }, [node]);
     }
 
     function checkbox(id, text, checked, onChange) {
@@ -1512,8 +1525,8 @@
         $('[data-update-target-name]', section).textContent = (result.target.name || 'vendor') + ' (ID ' + result.target.id + ')';
         $('[data-diff-body]', section).replaceChildren(...result.diff.map((row) => el('tr', { class: row.changed ? null : 'diff-unchanged' }, [
           el('td', { text: labels[row.field] || row.field }),
-          el('td', { text: formatValue(row.before) }),
-          el('td', { text: formatValue(row.after) }),
+          el('td', { class: 'wrap', text: formatValue(row.before) }),
+          el('td', { class: 'wrap', text: formatValue(row.after) }),
           el('td', { text: row.changed ? 'Will change' : 'No change' }),
         ])));
         diff.hidden = false;

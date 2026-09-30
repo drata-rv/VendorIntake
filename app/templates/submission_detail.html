@@ -33,12 +33,12 @@
 
   <section class="card" aria-labelledby="summary-title">
     <h2 id="summary-title">Summary</h2>
-    <div class="banner" data-tone="{{ {'CREATED': 'success', 'UPDATED': 'success', 'IN_PROGRESS': 'primary', 'NEEDS_CORRECTION': 'critical', 'BLOCKED': 'critical', 'CANCELLED': 'neutral'}.get(s, 'warning') }}">
+    <div class="banner" data-tone="{{ {'CREATED': 'success', 'UPDATED': 'success', 'IN_PROGRESS': 'primary', 'NEEDS_CORRECTION': 'critical', 'BLOCKED': 'critical', 'CANCELLED': 'primary'}.get(s, 'warning') }}">
       <p>{{ d.message }}</p>
     </div>
     <dl class="dl-grid">
       <dt>Status</dt>
-      <dd>{{ pill(s) }}{% if d.reason %} <span class="tag mono">{{ d.reason }}</span>{% endif %}</dd>
+      <dd>{{ pill(s) }}{% if d.reason %} <span class="tag" data-code="{{ d.reason }}">{{ d.reason|replace('_', ' ')|capitalize }}</span>{% endif %}</dd>
       <dt>Local reference</dt>
       <dd><span class="mono">{{ d.id }}</span></dd>
       <dt>Vendor</dt>
@@ -46,12 +46,12 @@
       <dt>Requester</dt>
       <dd>{{ d.requesterEmail or 'Unknown' }}</dd>
       <dt>Operation</dt>
-      <dd>{{ d.operation }}</dd>
+      <dd>{{ d.operation|capitalize }}</dd>
       <dt>Form version</dt>
       <dd>{{ d.formVersion }}</dd>
       <dt>Drata ID</dt>
       <dd>{% if d.drataId %}<span class="mono">{{ d.drataId }}</span>{% else %}<span class="muted">Not assigned</span>{% endif %}
-        {% if d.link %} <a href="{{ d.link }}" target="_blank" rel="noopener noreferrer">Open in Drata</a>{% endif %}</dd>
+        {% if d.link %} <a href="{{ d.link }}" target="_blank" rel="noopener noreferrer">Open in Drata<span class="visually-hidden"> (opens in a new tab)</span></a>{% endif %}</dd>
       {% if d.targetDrataId %}
       <dt>Update target</dt>
       <dd><span class="mono">{{ d.targetDrataId }}</span></dd>
@@ -99,17 +99,17 @@
           {% set is_local = c.id is string and c.id.startswith('L:') %}
           <tr>
             <td data-label="Drata ID">{% if is_local %}<a href="{{ url_for('routes.submission_page', sid=c.id[2:]) }}">Local submission</a>{% else %}<span class="mono">{{ c.id }}</span>{% endif %}</td>
-            <td data-label="Name">{{ c.name or '' }}</td>
-            <td data-label="Website">{{ c.url or '' }}</td>
-            <td data-label="Drata status">{{ c.status or '' }}</td>
-            <td data-label="Match reasons">
+            <td class="wrap" data-label="Name">{{ c.name or '' }}</td>
+            <td data-label="Website"><span class="url">{{ c.url or '' }}</span></td>
+            <td data-label="Drata status">{{ (c.status or '')|replace('_', ' ')|capitalize }}</td>
+            <td class="wrap" data-label="Match reasons">
               {% for r in c.reasons %}
-              <span class="tag mono">{{ r }}</span>
+              <span class="tag" data-code="{{ r }}">{{ r|replace('_', ' ')|capitalize }}</span>
               {% endfor %}
               {% for r in c.reasons %}{% if reason_help.get(r) %}<span class="sub">{{ reason_help[r] }}</span>{% endif %}{% endfor %}
             </td>
             <td data-label="Use">
-              {% if not is_local %}<button type="button" class="btn btn-tertiary btn-sm" data-use-candidate="{{ c.id }}">Use ID {{ c.id }}</button>{% endif %}
+              {% if not is_local %}<button type="button" class="btn btn-secondary btn-sm" data-use-candidate="{{ c.id }}">Use ID {{ c.id }}</button>{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -314,9 +314,9 @@
           {% for e in d.events %}
           <tr>
             <td data-label="Time">{{ when(e.at) }}</td>
-            <td data-label="Actor"><span class="mono">{{ e.actor }}</span></td>
+            <td class="wrap" data-label="Actor"><span class="mono">{{ e.actor }}</span></td>
             <td data-label="Action"><span class="mono">{{ e.action }}</span></td>
-            <td data-label="Details"><span class="mono small">{{ e.meta }}</span></td>
+            <td class="wrap" data-label="Details"><span class="mono small">{{ e.meta }}</span></td>
           </tr>
           {% endfor %}
         </tbody>

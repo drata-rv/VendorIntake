@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import pill, when, plural %}
-{% set tones = {'CREATED': 'success', 'UPDATED': 'success', 'IN_PROGRESS': 'primary', 'NEEDS_CORRECTION': 'critical', 'BLOCKED': 'critical', 'CANCELLED': 'neutral'} %}
+{% set tones = {'CREATED': 'success', 'UPDATED': 'success', 'IN_PROGRESS': 'primary', 'NEEDS_CORRECTION': 'critical', 'BLOCKED': 'critical', 'CANCELLED': 'primary'} %}
 {% set titles = {'CREATED': 'Vendor created', 'UPDATED': 'Vendor updated', 'IN_PROGRESS': 'Submission in progress', 'NEEDS_REVIEW': 'Waiting for administrator review', 'NEEDS_CORRECTION': 'Correction needed', 'BLOCKED': 'Submission blocked', 'RETRYABLE': 'Nothing was sent to Drata', 'UNKNOWN': 'Outcome not confirmed', 'CANCELLED': 'Submission closed'} %}
 {% block title %}Submission Result{% endblock %}
 {% block heading %}Submission Result{% endblock %}
@@ -27,7 +27,7 @@
     <dd>{% if sub.drataId %}<span class="mono" data-drata-id>{{ sub.drataId }}</span>{% else %}<span class="muted">Not assigned</span>{% endif %}</dd>
     {% if sub.link %}
     <dt>Drata link</dt>
-    <dd><a href="{{ sub.link }}" target="_blank" rel="noopener noreferrer">Open vendor in Drata</a></dd>
+    <dd><a href="{{ sub.link }}" target="_blank" rel="noopener noreferrer">Open vendor in Drata<span class="visually-hidden"> (opens in a new tab)</span></a></dd>
     {% endif %}
     <dt>Action</dt>
     <dd>{{ 'Update existing vendor' if sub.operation == 'UPDATE' else 'Create prospective vendor' }}</dd>

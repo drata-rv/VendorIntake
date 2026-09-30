@@ -6,7 +6,7 @@
 
 {% macro user_row(u, me_id) %}
 <tr data-user-id="{{ u.id }}" data-active="{{ 'true' if u.active else 'false' }}" data-role="{{ u.role }}">
-  <td data-label="Email"><span data-cell="email">{{ u.email }}</span>{% if me_id and u.id == me_id %} <span class="tag">You</span>{% endif %}</td>
+  <td data-label="Email"><span class="nowrap" data-cell="email">{{ u.email }}</span>{% if me_id and u.id == me_id %} <span class="tag">You</span>{% endif %}</td>
   <td data-label="Role"><span data-cell="role">{{ 'Administrator' if u.role == 'ADMIN' else 'Requester' }}</span></td>
   <td data-label="Status">
     <span class="pill" data-cell="status" data-tone="{{ 'success' if u.active else 'neutral' }}">{{ 'Active' if u.active else 'Disabled' }}</span>
@@ -20,10 +20,12 @@
     <div class="row">
       <button type="button" class="btn btn-secondary btn-sm" data-user-action="toggle">{{ 'Disable' if u.active else 'Enable' }}<span class="visually-hidden" data-sr-email> {{ u.email }}</span></button>
       <label class="visually-hidden" data-role-label for="role-{{ u.id }}">Role for <span data-sr-email>{{ u.email }}</span></label>
-      <select class="select" data-role-select id="role-{{ u.id }}">
-        <option value="REQUESTER"{% if u.role == 'REQUESTER' %} selected{% endif %}>Requester</option>
-        <option value="ADMIN"{% if u.role == 'ADMIN' %} selected{% endif %}>Administrator</option>
-      </select>
+      <span class="select-wrap">
+        <select class="select" data-role-select id="role-{{ u.id }}">
+          <option value="REQUESTER"{% if u.role == 'REQUESTER' %} selected{% endif %}>Requester</option>
+          <option value="ADMIN"{% if u.role == 'ADMIN' %} selected{% endif %}>Administrator</option>
+        </select>
+      </span>
       <button type="button" class="btn btn-secondary btn-sm" data-user-action="role">Set role<span class="visually-hidden" data-sr-email> {{ u.email }}</span></button>
       <button type="button" class="btn btn-secondary btn-sm" data-user-action="reset">Reset password<span class="visually-hidden" data-sr-email> {{ u.email }}</span></button>
     </div>
@@ -46,10 +48,12 @@
         </div>
         <div class="field">
           <label class="field-label" for="new-role">Role</label>
-          <select class="select" id="new-role" name="role">
-            <option value="REQUESTER" selected>Requester</option>
-            <option value="ADMIN">Administrator</option>
-          </select>
+          <span class="select-wrap">
+            <select class="select" id="new-role" name="role">
+              <option value="REQUESTER" selected>Requester</option>
+              <option value="ADMIN">Administrator</option>
+            </select>
+          </span>
         </div>
       </div>
       <div class="form-actions">
